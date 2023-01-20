@@ -119,7 +119,7 @@ class MyPaddingLongerSide:
             diff=self.max_width-width
             img=TF.pad(img,(diff,0,0,0),0,'constant')
         return img
-    
+        
 class BreastCancerDataset_generator(Dataset):
     """Face Landmarks dataset."""
 
