@@ -59,12 +59,12 @@ def input_file_creation(config_params):
 
             if config_params['labeltouse'] == 'imagelabel':
                 df_instances = pd.read_csv(config_params['SIL_csvfilepath'])
-                df_instances['Groundtruth'] = df_instances['imagelabels']
+                df_instances['Groundtruth'] = df_instances['ImageLabel']
                 #pd.read_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv', sep=';')
 
             elif config_params['labeltouse'] == 'caselabel':
                 df_instances = pd.read_csv(config_params['SIL_csvfilepath'])
-                df_instances['Groundtruth'] = df_instances['caselabels']
+                df_instances['Groundtruth'] = df_instances['CaseLabel']
                 #df_instances=pd.read_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_caselabel_groundtruth.csv', sep=';')
 
             #taking the case-level patient rows from the SIL csv path 

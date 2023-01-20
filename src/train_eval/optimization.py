@@ -1,7 +1,7 @@
 import torch.optim as optim
 
 def lrdecay_scheduler_kim(optimizer):
-    """Sets the learning rate to the initial LR decayed by 0.2 every 10 epochs"""
+    """Sets the learning rate to the initial LR decayed by 0.2 every 10 epochs. Add the paper reference here."""
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.2)
     return scheduler
 
