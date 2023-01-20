@@ -81,36 +81,35 @@ def model_initialization(config_params):
     return model, pytorch_total_params
 
 def model_checkpoint(config_params, path_to_model):
-    if config_params['patienceepoch']:
-        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model,patience=config_params['patienceepoch'],verbose=True)
-    elif config_params['use_validation']:
-        modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model,verbose=True)
+    if config_params['patienceepochs']:
+        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, patience=config_params['patienceepoch'], verbose=True)
+    elif config_params['usevalidation']:
+        modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model, verbose=True)
     return modelcheckpoint
 
-def train(config_params, model, path_to_model, data_iterator_train, data_iterator_val, batches_train, batches_val, epochs, df_train):
+def train(config_params, model, path_to_model, data_iterator_train, data_iterator_val, batches_train, batches_val, df_train):
     '''Training'''
-
     modelcheckpoint = model_checkpoint(config_params, path_to_model)
-    optimizer = optimization.optimizer_fn(config_params)
+    optimizer = optimization.optimizer_fn(config_params, model)
     scheduler = optimization.select_lr_scheduler(config_params, optimizer)
     
     if os.path.isfile(path_to_model):
-        model,_,start_epoch = utils.load_model(model, optimizer, path_to_model)
+        model, _, start_epoch = utils.load_model(model, optimizer, path_to_model)
         print("start epoch:",start_epoch)
         print("lr:",optimizer.param_groups[0]['lr'])
     else:
         start_epoch = 0
     
     if config_params['classimbalance']!='focalloss':
-        if config_params['femodel'] == 'gmic_resnet18_pretrained':
-            bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, df_train)
+        if config_params['femodel'] == 'gmic_resnet18':
+            bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, df_train, test_bool=False)
         else:
             if config_params['activation'] == 'softmax':
-                lossfn = loss_function.loss_fn_crossentropy(config_params, df_train)
+                lossfn = loss_function.loss_fn_crossentropy(config_params, df_train, test_bool=False)
             elif config_params['activation'] == 'sigmoid':
-                lossfn = loss_function.loss_fn_bce(config_params, df_train)
+                lossfn = loss_function.loss_fn_bce(config_params, df_train, test_bool=False)
     
-    for epoch in range(start_epoch,epochs):
+    for epoch in range(start_epoch,config_params['maxepochs']):
         model.train()
         loss_train=0.0
         correct_train=0
@@ -130,14 +129,14 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             #if config_params['viewsinclusion']=='variable':
             #    model, optimizer = utils.freeze_pipelines(model, optimizer, views_names, attention, feature_extractor)
             
-            if config_params['femodel'] == 'gmic_resnet18_pretrained':
+            if config_params['femodel'] == 'gmic_resnet18':
                 output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch) # compute model output, loss and total train loss over one epoch
                 output_batch_local = output_batch_local.view(-1)
                 output_batch_global = output_batch_global.view(-1)
                 output_batch_fusion = output_batch_fusion.view(-1)
                 train_labels = train_labels.float()
                 pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                loss = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels)
+                loss = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, df_train, test_bool=False)
             
             else:
                 output_batch = model(train_batch)
@@ -146,7 +145,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                     output_batch = output_batch.view(-1)                                                                          
                     train_labels = train_labels.float()
                     pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
-                    if config_params['class_imbalance'] == 'focalloss':
+                    if config_params['classimbalance'] == 'focalloss':
                         loss = sigmoid_focal_loss(output_batch, train_labels, alpha=-1, reduction='mean')
                     else:
                         loss = lossfn(output_batch, train_labels)
@@ -163,8 +162,8 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             batch_no=batch_no+1
            
             #performance metrics of training dataset
-            correct_train, total_images_train, conf_mat_train,_ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train)
-            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, epochs, batch_no, batches_train, loss.item()))
+            correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
+            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['epochs'], batch_no, batches_train, loss.item()))
         
         if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu':
             current_lr=scheduler.get_last_lr()[0]
@@ -172,34 +171,36 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             current_lr=optimizer.param_groups[0]['lr']
         print("current lr:",current_lr)
         
-        running_train_loss=loss_train/total_images_train
+        running_train_loss = loss_train/total_images_train
 
         # early_stopping needs the validation loss to check if it has decresed, 
         # and if it has, it will make a checkpoint of the current model
         
-        correct_test, total_images_val, loss_val, conf_mat_val, auc_val = validation(model, data_iterator_val, epoch, batches_val, config_params['classimbalance'])
+        correct_test, total_images_val, loss_val, conf_mat_val, auc_val = validation(config_params, model, data_iterator_val, batches_val, df_val, epoch)
         valid_loss = loss_val/total_images_val
-        evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val)
+        evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val, path_to_results_xlsx, path_to_results_text)
         
         if config_params['patienceepochs']:
-            modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss)
+            modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
             if modelcheckpoint.early_stop:
                 print("Early stopping",epoch+1)
                 break
         else:
-            if config_params['use_validation']:
+            if config_params['usevalidation']:
                 modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
             else:
                 utils.save_model(model, optimizer, epoch, running_train_loss)
-                per_model_metrics, conf_mat_test = test.test(config_params, model, dataloader_val, batches_val, path_to_results_xlsx, df_test)
-                evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train,total_images_train,loss_train,None, None, None,epoch, conf_mat_train, None, current_lr)
+                per_model_metrics, _ = test.test(config_params, model, dataloader_val, batches_val, path_to_results_xlsx, df_test)
+                evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train,total_images_train,loss_train,None, None, None,epoch, conf_mat_train, None, current_lr, path_to_results_xlsx, path_to_results_text)
                 evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
 
         if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu': 
             scheduler.step()
     
-    evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_train_best, path_to_results_xlsx, 'confmat_train_val_test')
-    evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_test_best, path_to_results_xlsx, 'confmat_train_val_test')
+    if config_params['usevalidation']:
+        evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_train_best, path_to_results_xlsx, 'confmat_train_val_test')
+        evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_test_best, path_to_results_xlsx, 'confmat_train_val_test')
+   
     print('Finished Training')
     
 def validation(config_params, model, data_iterator_val, batches_val, df_val, epoch):
@@ -210,29 +211,29 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
     correct = 0
     s=0
     batch_val_no=0
-    conf_mat_test=np.zeros((2,2))
+    conf_mat_val=np.zeros((2,2))
     
     if config_params['classimbalance']!='focalloss':
-        if config_params['femodel'] == 'gmic_resnet18_pretrained':
-            bcelogitloss_val, bceloss_val = loss_function.loss_fn_gmic_initialize(config_params, df_val)
+        if config_params['femodel'] == 'gmic_resnet18':
+            bcelogitloss_val, bceloss_val = loss_function.loss_fn_gmic_initialize(config_params, df_val, test_bool=False)
         else:
             if config_params['activation'] == 'softmax':
-                lossfn1 = loss_function.loss_fn_crossentropy(config_params, df_val)
+                lossfn1 = loss_function.loss_fn_crossentropy(config_params, df_val, test_bool=False)
             elif config_params['activation'] == 'sigmoid':
-                lossfn1 = loss_function.loss_fn_bce(config_params, df_val)
+                lossfn1 = loss_function.loss_fn_bce(config_params, df_val, test_bool=False)
     
     with torch.no_grad():   
         for val_idx, val_batch, val_labels in data_iterator_val:
             val_batch, val_labels = val_batch.to(config_params['device']), val_labels.to(config_params['device'])
             val_labels = val_labels.view(-1)#.float()
-            if config_params['femodel'] == 'gmic_resnet18_pretrained':
+            if config_params['femodel'] == 'gmic_resnet18':
                 output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch) # compute model output, loss and total train loss over one epoch
                 output_batch_local_val = output_batch_local_val.view(-1)
                 output_batch_global_val = output_batch_global_val.view(-1)
                 output_batch_fusion_val = output_batch_fusion_val.view(-1)
                 val_labels = val_labels.float()
                 val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
-                loss1 = loss_function.loss_fn_gmic(bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, config_params['sm_reg_param']).item()
+                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, df_val, test_bool=False).item()
                 output_val = output_batch_fusion_val
             else:
                 output_val = model(val_batch)
@@ -250,38 +251,38 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                     loss1 = lossfn1(output_val, val_labels).item()
             
             if batch_val_no==0:
-                val_pred_all=val_pred
-                val_labels_all=val_labels
+                val_pred_all = val_pred
+                val_labels_all = val_labels
                 print(output_val.data.shape)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten=torch.sigmoid(output_val.data)
+                    output_all_ten = torch.sigmoid(output_val.data)
                 elif config_params['activation'] == 'softmax':
-                    output_all_ten=F.softmax(output_val.data,dim=1)
-                    output_all_ten=output_all_ten[:,1]
+                    output_all_ten = F.softmax(output_val.data,dim=1)
+                    output_all_ten = output_all_ten[:,1]
             else:
-                val_pred_all=torch.cat((val_pred_all,val_pred),dim=0)
-                val_labels_all=torch.cat((val_labels_all,val_labels),dim=0)
+                val_pred_all = torch.cat((val_pred_all,val_pred),dim=0)
+                val_labels_all = torch.cat((val_labels_all,val_labels),dim=0)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten=torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
+                    output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
                 elif config_params['activation'] == 'softmax':
-                    output_all_ten=torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)
+                    output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)
 
-            s=s+val_labels.shape[0]    
+            s = s+val_labels.shape[0]    
             val_loss += val_labels.size()[0]*loss1 # sum up batch loss
-            correct,total_images,conf_mat_test,conf_mat_batch = evaluation.conf_mat_create(val_pred,val_labels,correct,total_images,conf_mat_test)
+            correct, total_images, conf_mat_val, _ = evaluation.conf_mat_create(val_pred, val_labels, correct, total_images, conf_mat_val, config_params['classes'])
             
             batch_val_no+=1
             print('Val: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_val_no, batches_val, loss1))
     
-    print("conf_mat_val:",conf_mat_test)
+    print("conf_mat_val:",conf_mat_val)
     print("total_images:",total_images)
     print("s:",s)
     print('\nVal set: total val loss: {:.4f}, Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%), Epoch:{}\n'.format(
         val_loss, val_loss/total_images, correct, total_images,
         100. * correct / total_images,epoch+1))
     
-    auc=metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy())
-    return correct,total_images,val_loss,conf_mat_test, auc
+    auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy())
+    return correct, total_images, val_loss, conf_mat_val, auc
 
 if __name__=='__main__':
     #read arguments
@@ -321,23 +322,23 @@ if __name__=='__main__':
         
         g = set_random_seed(config_params)
         
-        path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup(config_file, config_params)
+        path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup(config_file, config_params, num_config_start, num_config_end)
         
         df_train, df_val, df_test, batches_train, batches_val, batches_test = read_input_file.input_file_creation(config_params)
         
-        dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(df_train, df_val, df_test, g)
+        dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, g)
         
         model, total_params = model_initialization(config_params)
 
         #training the model
-        if config_params['use_validation']:
-            train.train(model, dataloader_train, dataloader_val, batches_train, batches_val, config_params['max_epochs'])
+        if config_params['usevalidation']:
+            train(config_params, model, path_to_model, dataloader_train, dataloader_val, batches_train, batches_val, df_train)
         else:
-            train.train(model, dataloader_train, dataloader_test, batches_train, batches_test, config_params['max_epochs'])
+            train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
 
         #hyperparameter results
         per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val)
-        hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patience_epoch'], config_params['batch_size']] + per_model_metrics_val
+        hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepoch'], config_params['batchsize']] + per_model_metrics_val
         evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
 
         #test the model

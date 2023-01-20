@@ -15,7 +15,6 @@ def read_config_file(config_file):
     config_params['randseedother'] = int(config_object["parametersetting"]['randseedother'])
     config_params['randseeddata'] = int(config_object["parametersetting"]['randseeddata'])
     config_params['batchsize'] = int(config_object['parametersetting']['batchsize'])#10
-    #config_params['modality'] = config_object["parametersetting"]['modality']#'MG'
     config_params['numclasses'] = int(config_object["parametersetting"]['numclasses'])
     config_params['maxepochs'] = int(config_object["parametersetting"]['maxepochs'])
     config_params['numworkers'] = int(config_object["parametersetting"]['numworkers'])
@@ -23,7 +22,6 @@ def read_config_file(config_file):
     config_params['classes'] = ast.literal_eval(config_object["parametersetting"]['classes'])
     config_params['resize'] = ast.literal_eval(config_object["parametersetting"]['resize'])
     config_params['activation'] = config_object["parametersetting"]['activation']
-    #config_params['featureextractor'] = config_object["parametersetting"]['featureextractor']
     config_params['viewsinclusion'] = config_object["parametersetting"]['viewsinclusion'] #-> from data to viewsinclusion
     config_params['dataaug'] = config_object["parametersetting"]['dataaug']
     config_params['dataset'] = config_object["parametersetting"]['dataset']
@@ -33,12 +31,16 @@ def read_config_file(config_file):
     config_params['device'] = config_object["parametersetting"]['device']
     config_params['ROIpatches'] = int(config_object["parametersetting"]['ROIpatches'])
     config_params['learningtype'] = config_object["parametersetting"]['learningtype']
+    config_params['channel'] = config_object["parametersetting"]['channel']
+    config_params['labeltouse'] = config_object["parametersetting"]['labeltouse']
+    config_params['papertoreproduce'] = config_object["parametersetting"]['papertoreproduce']
+    config_params['regionpooling'] = config_object["parametersetting"]['regionpooling']
     
-    config_params['patienceepoch'] = config_object["parametersetting"]['patienceepoch']#14
-    if config_params['patienceepoch'] == 'False':
-        config_params['patienceepoch'] = False
+    config_params['patienceepochs'] = config_object["parametersetting"]['patienceepochs']#14
+    if config_params['patienceepochs'] == 'False':
+        config_params['patienceepochs'] = False
     else:
-        config_params['patienceepoch'] = int(config_params['patienceepoch'])
+        config_params['patienceepochs'] = int(config_params['patienceepochs'])
 
     config_params['classimbalance'] = config_object["parametersetting"]['classimbalance']
     if config_params['classimbalance'] == 'False':
@@ -47,12 +49,6 @@ def read_config_file(config_file):
     config_params['attention'] = config_object["parametersetting"]['attention']
     if config_params['attention'] == 'False':
         config_params['attention'] = False
-    
-    config_params['baseline'] = config_object["parametersetting"]['baseline']
-    if config_params['baseline'] == 'False':
-        config_params['baseline'] = False
-    else:
-        config_params['baseline']==True
     
     config_params['datascaling'] = config_object["parametersetting"]['datascaling']
     if config_params['datascaling'] == 'False':
@@ -67,14 +63,6 @@ def read_config_file(config_file):
         config_params['flipimage'] = False
     else:
         config_params['flipimage'] == True
-    
-    config_params['featurenorm'] = config_object["parametersetting"]['featurenorm']
-    if config_params['featurenorm'] == 'False':
-        config_params['featurenorm'] = False
-    if config_params['featurenorm'] == 'rgb':
-        inchans=3
-    else:
-        inchans=1
     
     config_params['femodel'] = config_object["parametersetting"]['femodel']
     if config_params['femodel'] == 'False':
@@ -111,13 +99,20 @@ def read_config_file(config_file):
         config_params['topkpatch']=False   
     
     try:
-        config_params['use_validation'] = config_object["parametersetting"]['use_validation']
-        if config_params['use_validation'] == 'False':
-            config_params['use_validation'] = False
+        config_params['usevalidation'] = config_object["parametersetting"]['usevalidation']
+        if config_params['usevalidation'] == 'False':
+            config_params['usevalidation'] = False
         else:
-            config_params['use_validation'] = True
+            config_params['usevalidation'] = True
     except:
-        config_params['use_validation'] == 'False'
+        config_params['usevalidation'] == 'False'
+    
+    
+    config_params['pretrained'] = config_object["parametersetting"]['pretrained']
+    if config_params['pretrained'] == 'False':
+        config_params['pretrained'] = False
+    else:
+        config_params['pretrained'] = True
 
     try:
         config_params['sm_reg_param'] = config_object["parametersetting"]['sm_reg_param']
@@ -129,11 +124,11 @@ def read_config_file(config_file):
         config_params['sm_reg_param'] = False
 
     try:
-        config_params['image_cleaning'] = config_object["parametersetting"]['image_cleaning']
-        if config_params['image_cleaning'] == 'False':
-            config_params['image_cleaning'] = False
+        config_params['imagecleaning'] = config_object["parametersetting"]['imagecleaning']
+        if config_params['imagecleaning'] == 'False':
+            config_params['imagecleaning'] = False
     except:
-        config_params['image_cleaning'] = False
+        config_params['imagecleaning'] = False
     
     config_params['SIL_csvfilepath'] = config_object["parametersetting"]['SIL_csvfilepath']
     if config_params['SIL_csvfilepath'] == 'False':
@@ -144,7 +139,7 @@ def read_config_file(config_file):
     config_params['preprocessed_imagepath'] = config_object["parametersetting"]['preprocessed_imagepath']
     config_params['bitdepth'] = config_object["parametersetting"]['bitdepth']
 
-    if config_params['femodel']=='gmic-resnet18':
+    if config_params['femodel']=='gmic_resnet18':
         config_params['gmic_parameters'] = {
             "device_type": 'gpu',
             "gpu_number": str(config_params['device'].split(':')[1]),
@@ -154,12 +149,12 @@ def read_config_file(config_file):
             "cam_size": (92, 60),
             "K": config_params['ROIpatches'],
             "crop_shape": (256, 256),
-            "post_processing_dim":512,
+            "post_processing_dim": 512,
             "num_classes": config_params['numclasses'],
             "use_v1_global":True,
             "percent_t": config_params['topkpatch'],
             'arch':'resnet18',
-            'pretrained': True
+            'pretrained': config_params['pretrained']
         }
 
     return config_params

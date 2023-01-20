@@ -86,42 +86,41 @@ class Identity(nn.Module):
         return x
 
 class SILmodel(nn.Module):
-    def __init__(self, activation, featureextractormodel, extra, topkpatch, gmic_parameters):
+    def __init__(self, config_params):
         super(SILmodel, self).__init__()
-        self.activation = activation
-        self.featureextractormodel = featureextractormodel
-        self.extra = extra
-        self.topkpatch = topkpatch
+        self.activation = config_params['activation']
+        self.featureextractormodel = config_params['femodel']
+        self.extra = config_params['extra']
+        self.topkpatch = config_params['topkpatch']
+        self.pretrained = config_params['pretrained']
+        self.channel = config_params['channel']
+        self.regionpooling = config_params['regionpooling']
         
-        if featureextractormodel:
-            print(featureextractormodel)
-            if 'resnet18pretrained' in featureextractormodel:
-                self.feature_extractor = resnet.resnet18(pretrained=True, inchans=3, activation=activation, topkpatch = self.topkpatch)
-            elif 'resnet34pretrained' in featureextractormodel:
-                self.feature_extractor = resnet.resnet34(pretrained=True, inchans=3, activation=activation, topkpatch = self.topkpatch)
-            elif 'resnet50pretrained' in featureextractormodel:
-                self.feature_extractor = resnet.resnet50(pretrained=True, inchans=3, activation=activation, topkpatch = self.topkpatch)
-            elif 'resnet18scratch' in featureextractormodel:
-                self.feature_extractor = resnet.resnet18(pretrained=False, inchans=1, activation=activation, topkpatch = self.topkpatch)
-            elif 'resnet50scratch' in featureextractormodel:
-                self.feature_extractor = resnet.resnet50(pretrained=False, inchans=1, activation=activation, topkpatch = self.topkpatch)
-            elif 'densenet121' in featureextractormodel:
-                self.feature_extractor = densenet.densenet121(pretrained=True, activation=activation, extra=self.extra, topkpatch = self.topkpatch)
-            elif 'densenet169' in featureextractormodel:
-                self.feature_extractor = densenet.densenet169(pretrained=True, activation=activation, extra=self.extra, topkpatch = self.topkpatch)
-            elif 'kim' in featureextractormodel:
-                self.feature_extractor = resnetkim.resnet18_features(activation=self.activation, extra = self.extra)
-            elif 'convnext-T' in featureextractormodel:
+        if self.featureextractormodel:
+            print(self.featureextractormodel)
+            if 'resnet18' in self.featureextractormodel:
+                self.feature_extractor = resnet.resnet18(pretrained = self.pretrained, inchans = self.channel, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+            elif 'resnet34' in self.featureextractormodel:
+                self.feature_extractor = resnet.resnet34(pretrained = self.pretrained, inchans = self.channel, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+            elif 'resnet50' in self.featureextractormodel:
+                self.feature_extractor = resnet.resnet50(pretrained = self.pretrained, inchans = self.channel, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+            elif 'densenet121' in self.featureextractormodel:
+                self.feature_extractor = densenet.densenet121(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+            elif 'densenet169' in self.featureextractormodel:
+                self.feature_extractor = densenet.densenet169(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+            elif 'kim' in self.featureextractormodel:
+                self.feature_extractor = resnetkim.resnet18_features(activation = self.activation, extra = self.extra)
+            elif 'convnext-T' in self.featureextractormodel:
                 self.feature_extractor = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
-                self.feature_extractor.classifier = Identity()
-            elif 'gmic_resnet18_pretrained' in featureextractormodel:
-                self.feature_extractor = gmic._gmic(gmic_parameters)
+                self.feature_extractor.classifier[2] = nn.Linear(768, 1)
+            elif 'gmic_resnet18' in self.featureextractormodel:
+                self.feature_extractor = gmic._gmic(config_params['gmic_parameters'])
         
-        if 'kimgap' in featureextractormodel:
+        if 'kimgap' in self.featureextractormodel:
             self.adaptiveavgpool = nn.AdaptiveAvgPool2d((1, 1)) #(1,1) is the output dimension of the result
     
     def forward(self, x):
-        if self.featureextractormodel=='gmic_resnet18_pretrained':
+        if self.featureextractormodel=='gmic_resnet18':
             y_local, y_global, y_fusion, saliency_map = self.feature_extractor(x)
             return y_local, y_global, y_fusion, saliency_map
         else:

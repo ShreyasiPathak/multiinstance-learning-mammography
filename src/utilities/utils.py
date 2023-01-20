@@ -121,9 +121,7 @@ class MyPaddingLongerSide:
         return img
         
 class BreastCancerDataset_generator(Dataset):
-    """Face Landmarks dataset."""
-
-    def __init__(self, df, modality, datascaling, resize, flipimage, inchans, image_cleaning, transform=None):
+    def __init__(self, config_params, df, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -132,36 +130,23 @@ class BreastCancerDataset_generator(Dataset):
                 on a sample.
         """
         self.df = df
-        self.modality = modality
         self.transform = transform
-        self.datascaling = datascaling
-        self.resize = resize
-        self.flipimage = flipimage
-        self.inchans = inchans
-        self.image_cleaning = image_cleaning
+        self.config_params = config_params
 
     def __len__(self):
         return self.df.shape[0]
     
     def __getitem__(self, idx):
         data=self.df.iloc[idx]
-        #studyuid_path=str(data['FullPath'])
-        #img = collect_images_opencv(data, self.flipimage, self.image_cleaning)
-        img = collect_images_gmic(data, self.flipimage, self.image_cleaning)
-        #img = collect_images_gmic2(data)
-        #print("img shape:",img[:200,:200,:])
-        #print(img.shape)
-        #print("views_saved:",views_saved)
+        img = collect_images(self.config_params, data)
         if self.transform:
             img=self.transform(img)
         #print("after transformation:",img.shape)
-        #print(img.shape)
-        if self.inchans==1:
+        if self.config_params['channel'] == 1:
             img=img[0,:,:]
             img=img.unsqueeze(0).unsqueeze(1)
-        elif self.inchans==3:
+        elif self.config_params['channel'] == 3:
             img=img.unsqueeze(0)
-        #print(img.shape)
         return idx, img, torch.tensor(groundtruth_dic[data['Groundtruth']])
     
 class CustomWeightedRandomSampler(Sampler):
@@ -375,13 +360,24 @@ def MyCollateBreastWise(batch):
     #print(views_names_list)
     return [index, bag_size, data, target, views_names]
 
-def collect_images(data, flipimage):
+##--------------------------------------------------------------- collect image ----------------------------------------------------#
+def collect_images(config_params, data):
+    if config_params['bitdepth'] ==  8:
+        img = collect_images_8bits(config_params, data)
+    elif config_params['bitdepth'] == 16:
+        if config_params['imagecleaning'] == 'gmic':
+            img = collect_images_gmiccleaningcode(data)
+        else:
+            img = collect_images_16bits(config_params, data)
+    return img
+         
+def collect_images_8bits(config_params, data):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
         img = Image.open(img_path)
         breast_side = data['Views'][0]
-        if flipimage:
+        if config_params['flipimage']:
             hflip_img = MyHorizontalFlip()
             img=hflip_img(img,breast_side)
         return img
@@ -389,35 +385,26 @@ def collect_images(data, flipimage):
         print('error in view')
         sys.exit()
 
-def collect_images_opencv(data, flipimage, image_cleaning):
+def collect_images_16bits(config_params, data):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
         img = cv2.imread(img_path,-1)
         img_dtype = img.dtype
-        #img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB).astype(np.float32)
-        img = img.astype(np.float32)
+        img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB).astype(np.float32)
         breast_side = data['Views'][0]
-        if image_cleaning == 'gmic':
-            if flipimage:
-                img = myhorizontalflip(img, breast_side)
-        img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
-        #img = img.astype(np.float32)
         if img_dtype=='uint16':
             img/=65535
-        #img = np.expand_dims(img, axis=0)
-        #img1 = torch.from_numpy(img).contiguous()
-        img1 = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
-        if image_cleaning!='gmic':
-            if flipimage:
-                hflip_img = MyHorizontalFlip()
-                img1 = hflip_img(img1,breast_side)
-        return img1
+        img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
+        if config_params['flipimage']:
+            hflip_img = MyHorizontalFlip()
+            img = hflip_img(img,breast_side)
+        return img
     else:
         print('error in view')
         sys.exit()
 
-def collect_images_gmic(data, flipimage, image_cleaning):
+def collect_images_gmiccleaningcode(data):
     breast_side = data['Views'][0]
     loaded_image = load_image(image_path=data['FullPath'], view=data['Views'], horizontal_flip='NO', breast_side=breast_side)
     gmic_pkl_filepath = '/projects/dso_mammovit/project_kushal/data/gmic-cleaningcode-pkl/data_restructured.pkl'
@@ -433,6 +420,7 @@ def collect_images_gmic(data, flipimage, image_cleaning):
     return img
 
 def collect_images_gmic2(data):
+    #another process to get the same result as collect_images_gmiccleaningcode; difference is in this function I use gmic's functions to load the image.
     with open("/projects/dso_mammovit/project_kushal/data/gmic-cleaningcode-pkl/data.pkl", "rb") as f:
         exam_list = pickle.load(f)
     for exam in exam_list:
@@ -450,47 +438,9 @@ def collect_images_gmic2(data):
     plt.imsave('./'+data['FullPath'].split('/')[-1], loaded_image, cmap="Greys_r")
     #input('halt')
     return loaded_image
+##-------------------------------------------------------------------- collect images end ----------------------------------------------------------------------#
 
-def standard_normalize_single_image(image):
-    """
-    Standardizes an image in-place 
-    """
-    image -= np.mean(image)
-    image /= np.maximum(np.std(image), 10**(-5))
-
-def read_image_png(file_name):
-    image = np.array(imageio.imread(file_name))
-    return image
-
-
-def load_image(image_path, view, horizontal_flip, breast_side):
-    """
-    Loads a png or hdf5 image as floats and flips according to its view.
-    """
-    if image_path.endswith("png"):
-        image = read_image_png(image_path)
-    else:
-        raise RuntimeError()
-    image = image.astype(np.float32)
-    image = myhorizontalflip(image, breast_side)
-    return image
-
-def gmic_image_cleaning(image, view, best_center):
-    """
-    Applies augmentation window with random noise in location and size
-    and return normalized cropped image.
-    """
-    cropped_image, _ = augmentations.random_augmentation_best_center(
-        image=image,
-        input_size=(2944, 1920),
-        random_number_generator=np.random.RandomState(0),
-        best_center=best_center,
-        view=view
-    )
-    cropped_image = cropped_image.copy()
-    #standard_normalize_single_image(cropped_image)
-    return cropped_image
-
+##------------------------------------------------------------------ different types of data augmentation functions --------------------------------------------# 
 class AddGaussianNoise(object):
     def __init__(self, mean=0., std=1.):
         self.std = std
@@ -502,10 +452,20 @@ class AddGaussianNoise(object):
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
 
-def data_augmentation_train_shu(mean,std_dev,resize,datascaling):
+
+def data_augmentation_train_kim(config_params, mean, std_dev):
+    preprocess_train = transforms.Compose([
+        transforms.ColorJitter(brightness=0.10, contrast=0.10),
+        transforms.Resize((config_params['resize'][0], config_params['resize'][1])),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std_dev)
+    ])
+    return preprocess_train
+
+def data_augmentation_train_shu(config_params, mean, std_dev):
     preprocess_train_list=[]
-    if resize:
-        preprocess_train_list.append(transforms.Resize((resize[0],resize[1])))
+    if config_params['resize']:
+        preprocess_train_list.append(transforms.Resize((config_params['resize'][0],config_params['resize'][1])))
 
     preprocess_train_list.append(transforms.ToTensor())
 
@@ -522,19 +482,19 @@ def data_augmentation_train_shu(mean,std_dev,resize,datascaling):
         AddGaussianNoise(mean=0, std=0.005)
         ]
     
-    if datascaling:
-        if datascaling!='standardizeperimage':
+    if config_params['datascaling']:
+        if config_params['datascaling']!='standardizeperimage':
             preprocess_train_list.append(transforms.Normalize(mean=mean, std=std_dev))
     
     preprocess_train = transforms.Compose(preprocess_train_list)
     return preprocess_train
 
-def data_augmentation_train_shen_gmic(mean,std_dev,resize,datascaling,image_cleaning):
+def data_augmentation_train_shen_gmic(config_params, mean, std_dev):
     preprocess_train_list=[]
 
-    if image_cleaning!='gmic':
-        if resize:
-            preprocess_train_list.append(transforms.Resize((resize[0],resize[1])))
+    if config_params['imagecleaning']!='gmic':
+        if config_params['resize']:
+            preprocess_train_list.append(transforms.Resize((config_params['resize'][0], config_params['resize'][1])))
     
     preprocess_train_list=preprocess_train_list+[
         transforms.RandomHorizontalFlip(p=0.5),
@@ -542,28 +502,28 @@ def data_augmentation_train_shen_gmic(mean,std_dev,resize,datascaling,image_clea
         AddGaussianNoise(mean=0, std=0.005)
         ]
     
-    if datascaling:
-        if datascaling!='standardizeperimage':
+    if config_params['datascaling']:
+        if config_params['datascaling']!='standardizeperimage':
             preprocess_train_list.append(transforms.Normalize(mean=mean, std=std_dev))
     
     preprocess_train = transforms.Compose(preprocess_train_list)
     return preprocess_train
 
-def data_augmentation_test_shen_gmic(mean,std_dev,resize,datascaling,image_cleaning):
+def data_augmentation_test_shen_gmic(config_params, mean, std_dev):
     preprocess_test_list=[]
 
-    if image_cleaning!='gmic':
-        if resize:
-            preprocess_test_list.append(transforms.Resize((resize[0],resize[1])))
+    if config_params['imagecleaning']!='gmic':
+        if config_params['resize']:
+            preprocess_test_list.append(transforms.Resize((config_params['resize'][0],config_params['resize'][1])))
     
-    if datascaling:  
-        if datascaling!='standardizeperimage':
+    if config_params['datascaling']:  
+        if config_params['datascaling']!='standardizeperimage':
             preprocess_test_list.append(transforms.Normalize(mean=mean, std=std_dev))
     
     preprocess_test = transforms.Compose(preprocess_test_list)
     return preprocess_test
 
-def data_augmentation(resize):
+def data_augmentation(config_params):
     # Data augmentation and normalization for training
     # Just normalization for validation
     data_transforms = {
@@ -574,8 +534,8 @@ def data_augmentation(resize):
             transforms.ColorJitter(brightness=0.20, contrast=0.20),
             transforms.RandomAdjustSharpness(sharpness_factor=0.20),
             utils.MyGammaCorrection(0.20),
-            utils.MyPaddingLongerSide(resize),
-            transforms.Resize((resize[0],resize[1])),
+            utils.MyPaddingLongerSide(config_params['resize']),
+            transforms.Resize((config_params['resize'][0],config_params['resize'][1])),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -589,7 +549,7 @@ def data_augmentation(resize):
         #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         #]),
         'val': transforms.Compose([
-            transforms.Resize((resize[0],resize[1])),
+            transforms.Resize((config_params['resize'][0],config_params['resize'][1])),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -597,7 +557,7 @@ def data_augmentation(resize):
 
     return data_transforms
 
-def data_augmentation_train(mean,std_dev,resize,datascaling):
+def data_augmentation_train(config_params, mean, std_dev):
     preprocess_train_list=[]
 
     preprocess_train_list=preprocess_train_list+[
@@ -608,34 +568,36 @@ def data_augmentation_train(mean,std_dev,resize,datascaling):
         transforms.ColorJitter(brightness=0.20, contrast=0.20),
         transforms.RandomAdjustSharpness(sharpness_factor=0.20),
         MyGammaCorrection(0.20),
-        MyPaddingLongerSide(resize)]
+        MyPaddingLongerSide(config_params['resize'])]
     
-    if resize:
-        preprocess_train_list.append(transforms.Resize((resize[0],resize[1])))
+    if config_params['resize']:
+        preprocess_train_list.append(transforms.Resize((config_params['resize'][0],config_params['resize'][1])))
     
     preprocess_train_list.append(transforms.ToTensor())
     
-    if datascaling:
-        if datascaling!='standardizeperimage':
+    if config_params['datascaling']:
+        if config_params['datascaling']!='standardizeperimage':
             preprocess_train_list.append(transforms.Normalize(mean=mean, std=std_dev))
     
     preprocess_train = transforms.Compose(preprocess_train_list)
     return preprocess_train
 
-def data_augmentation_test(mean,std_dev,resize,datascaling):
+def data_augmentation_test(config_params, mean, std_dev):
     preprocess_test_list=[]
 
-    if resize:
-        preprocess_test_list.append(transforms.Resize((resize[0],resize[1])))
+    if config_params['resize']:
+        preprocess_test_list.append(transforms.Resize((config_params['resize'][0],config_params['resize'][1])))
     
     preprocess_test_list.append(transforms.ToTensor())
     
-    if datascaling:  
-        if datascaling!='standardizeperimage':
+    if config_params['datascaling']:  
+        if config_params['datascaling']!='standardizeperimage':
             preprocess_test_list.append(transforms.Normalize(mean=mean, std=std_dev))
     
     preprocess_test = transforms.Compose(preprocess_test_list)
     return preprocess_test
+
+##------------------------------------------------------------------ different types of data augmentation functions end --------------------------------------------#
 
 def fetch_groundtruth(df,acc_num,modality):
     col_names=df.filter(regex='Acc_'+modality+'.*').columns.tolist()
@@ -994,12 +956,12 @@ def save_model(model,optimizer,epoch,loss,path_to_model):
     }
     torch.save(state,path_to_model)
 
-def load_model(model,optimizer,path):
+def load_model(model, optimizer, path):
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optim_dict'])
     epoch = checkpoint['epoch']
-    return model,optimizer,epoch
+    return model, optimizer, epoch
 
 def confusion_matrix_norm_func(conf_mat,fig_name,class_name):
     #class_name=['W','N1','N2','N3','REM']
@@ -1121,7 +1083,48 @@ def crosscheck_view_collect_images(df):
         i+=1
 
 
-#function from gmic repository
+
+##------------------------------------------------------------- functions taken from gmic --------------------------------#
+def standard_normalize_single_image(image):
+    """
+    Standardizes an image in-place 
+    """
+    image -= np.mean(image)
+    image /= np.maximum(np.std(image), 10**(-5))
+
+def read_image_png(file_name):
+    image = np.array(imageio.imread(file_name))
+    return image
+
+
+def load_image(image_path, view, horizontal_flip, breast_side):
+    """
+    Loads a png or hdf5 image as floats and flips according to its view.
+    """
+    if image_path.endswith("png"):
+        image = read_image_png(image_path)
+    else:
+        raise RuntimeError()
+    image = image.astype(np.float32)
+    image = myhorizontalflip(image, breast_side)
+    return image
+
+def gmic_image_cleaning(image, view, best_center):
+    """
+    Applies augmentation window with random noise in location and size
+    and return normalized cropped image.
+    """
+    cropped_image, _ = augmentations.random_augmentation_best_center(
+        image=image,
+        input_size=(2944, 1920),
+        random_number_generator=np.random.RandomState(0),
+        best_center=best_center,
+        view=view
+    )
+    cropped_image = cropped_image.copy()
+    #standard_normalize_single_image(cropped_image)
+    return cropped_image
+
 def make_sure_in_range(val, min_val, max_val):
     """
     Function that make sure that min < val < max; otherwise return the limit value
@@ -1246,5 +1249,4 @@ def generate_mask_uplft(input_image, window_shape, upper_left_points, gpu_number
     mask = 1 - selected.float()
     return mask
 
-#conf_mat=np.array([[775,52],[170,166]])
-#confusion_matrix_norm_func(conf_mat,'sota_MaxWelling_variableview_MG',class_name=['benign','malignant'])
+#---------------------------------------------- end of functions taken from gmic repository ----------------#

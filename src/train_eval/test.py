@@ -28,7 +28,7 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
     batch_test_no=0
     conf_mat_test=np.zeros((2,2))
     
-    if config_params['femodel'] == 'gmic_resnet18_pretrained':
+    if config_params['femodel'] == 'gmic_resnet18':
         bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, df_test, test_bool=True)
     else:
         if config_params['activation'] == 'softmax':
@@ -48,7 +48,7 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
                 output_batch_fusion = output_batch_fusion.view(-1)
                 test_labels = test_labels.float()
                 test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                loss1 = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, df_test).item()
+                loss1 = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, df_test, test_bool=False).item()
                 output_test = output_batch_fusion
             
             else:

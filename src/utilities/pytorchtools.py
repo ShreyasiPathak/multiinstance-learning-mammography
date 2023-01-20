@@ -30,7 +30,7 @@ class EarlyStopping:
         self.conf_mat_test_best=np.zeros((2,2))
         self.path_to_model=path_to_model
 
-    def __call__(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss):
+    def __call__(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, val_auc):
 
         score = -val_loss
 

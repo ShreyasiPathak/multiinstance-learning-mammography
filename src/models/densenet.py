@@ -171,8 +171,7 @@ class DenseNet(nn.Module):
 
         super().__init__()
         _log_api_usage_once(self)
-
-        self.extra = kwargs['extra']
+        
         self.topkpatch = kwargs['topkpatch']
         self.pooling_type = kwargs['regionpooling']
 

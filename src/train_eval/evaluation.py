@@ -59,7 +59,7 @@ def conf_mat_create(predicted, true, correct, total_images, conf_mat, classes):
     correct += predicted.eq(true.view_as(predicted)).sum().item()
     conf_mat_batch=confusion_matrix(true.cpu().numpy(),predicted.cpu().numpy(),labels=classes)
     conf_mat=conf_mat+conf_mat_batch
-    return correct, total_images,conf_mat,conf_mat_batch
+    return correct, total_images, conf_mat, conf_mat_batch
 
 def write_results_xlsx(results, path_to_results, sheetname):
     wb = op.load_workbook(path_to_results)
@@ -110,6 +110,7 @@ def calc_viewwise_metric(count_dic_viewwise, conf_mat_viewwise):
         val_stats_viewwise[key]=[count_key,tpr,tnr,acc]
         #print(key, 'benign', sum(conf_mat_viewwise[key][0,:]))
         #print(key, 'malignant', sum(conf_mat_viewwise[key][1,:]))
+    return val_stats_viewwise
 
 def results_viewwise(sheet4, val_stats_viewwise):
     header=[]
