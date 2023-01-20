@@ -6,6 +6,7 @@ from torchvision import models
 import resnetkim
 import resnet
 import densenet
+import gmic
 import math
 import torchvision
 from torchvision.models.resnet import BasicBlock
@@ -85,7 +86,7 @@ class Identity(nn.Module):
         return x
 
 class SILmodel(nn.Module):
-    def __init__(self, activation, featureextractormodel, extra, topkpatch):
+    def __init__(self, activation, featureextractormodel, extra, topkpatch, gmic_parameters):
         super(SILmodel, self).__init__()
         self.activation = activation
         self.featureextractormodel = featureextractormodel
@@ -111,8 +112,11 @@ class SILmodel(nn.Module):
             elif 'kim' in featureextractormodel:
                 self.feature_extractor = resnetkim.resnet18_features(activation=self.activation, extra = self.extra)
             elif 'convnext-T' in featureextractormodel:
-                    self.view_model = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
-                    self.view_model.classifier = Identity()
+                self.feature_extractor = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
+                self.feature_extractor.classifier[2] = nn.Linear(768, 1)
+
+            elif 'gmic_resnet18_pretrained' in featureextractormodel:
+                self.feature_extractor = gmic._gmic(gmic_parameters)
         else:
             self.feature_extractor = resnetkim.resnet18_features(activation=self.activation, extra = self.extra)
         
@@ -120,12 +124,16 @@ class SILmodel(nn.Module):
             self.adaptiveavgpool = nn.AdaptiveAvgPool2d((1, 1)) #(1,1) is the output dimension of the result
     
     def forward(self, x):
-        M = self.feature_extractor(x)
-        if 'kimgap' in self.featureextractormodel:
-            M = self.adaptiveavgpool(M)
-        M = M.view(M.shape[0],-1)
-        print(M.shape)
-        return M
+        if self.featureextractormodel=='gmic_resnet18_pretrained':
+            y_local, y_global, y_fusion, saliency_map = self.feature_extractor(x)
+            return y_local, y_global, y_fusion, saliency_map
+        else:
+            M = self.feature_extractor(x)
+            if 'kimgap' in self.featureextractormodel:
+                M = self.adaptiveavgpool(M)
+            M = M.view(M.shape[0],-1)
+            print(M.shape)
+            return M
     
 
 class MILmodel(nn.Module):

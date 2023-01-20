@@ -30,9 +30,8 @@ from collections import Counter
 import operator
 from sklearn.model_selection import GroupShuffleSplit
 from torch.autograd import Variable
-import augmentations
+from data_loading import augmentations, loading
 import imageio
-import loading
 
 groundtruth_dic={'benign':0,'malignant':1}
 inverted_groundtruth_dic={0:'benign',1:'malignant'}
@@ -147,8 +146,8 @@ class BreastCancerDataset_generator(Dataset):
     def __getitem__(self, idx):
         data=self.df.iloc[idx]
         #studyuid_path=str(data['FullPath'])
-        img = collect_images_opencv(data, self.flipimage, self.image_cleaning)
-        #img = collect_images_gmic(data, self.flipimage, self.image_cleaning)
+        #img = collect_images_opencv(data, self.flipimage, self.image_cleaning)
+        img = collect_images_gmic(data, self.flipimage, self.image_cleaning)
         #img = collect_images_gmic2(data)
         #print("img shape:",img[:200,:200,:])
         #print(img.shape)
@@ -421,13 +420,12 @@ def collect_images_opencv(data, flipimage, image_cleaning):
 def collect_images_gmic(data, flipimage, image_cleaning):
     breast_side = data['Views'][0]
     loaded_image = load_image(image_path=data['FullPath'], view=data['Views'], horizontal_flip='NO', breast_side=breast_side)
-    '''gmic_pkl_filepath = '/projects/dso_mammovit/project_kushal/data/gmic-cleaningcode-pkl/data_restructured.pkl'
+    gmic_pkl_filepath = '/projects/dso_mammovit/project_kushal/data/gmic-cleaningcode-pkl/data_restructured.pkl'
     f = open(gmic_pkl_filepath,'rb')
     pkl = pickle.load(f)
     imagename=data['ImageName'].replace('.','-')
     img = gmic_image_cleaning(loaded_image, data['Views'], pkl[imagename]['best_center'][0])
-    '''
-    img = cv2.cvtColor(loaded_image,cv2.COLOR_GRAY2RGB)
+    img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
     img/=65535
     img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
     #print(data['FullPath'])
@@ -533,6 +531,7 @@ def data_augmentation_train_shu(mean,std_dev,resize,datascaling):
 
 def data_augmentation_train_shen_gmic(mean,std_dev,resize,datascaling,image_cleaning):
     preprocess_train_list=[]
+
     if image_cleaning!='gmic':
         if resize:
             preprocess_train_list.append(transforms.Resize((resize[0],resize[1])))
@@ -563,6 +562,40 @@ def data_augmentation_test_shen_gmic(mean,std_dev,resize,datascaling,image_clean
     
     preprocess_test = transforms.Compose(preprocess_test_list)
     return preprocess_test
+
+def data_augmentation(resize):
+    # Data augmentation and normalization for training
+    # Just normalization for validation
+    data_transforms = {
+        'train': transforms.Compose([
+            utils.MyCrop(),
+            transforms.Pad(100),
+            transforms.RandomRotation(3),
+            transforms.ColorJitter(brightness=0.20, contrast=0.20),
+            transforms.RandomAdjustSharpness(sharpness_factor=0.20),
+            utils.MyGammaCorrection(0.20),
+            utils.MyPaddingLongerSide(resize),
+            transforms.Resize((resize[0],resize[1])),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+        #'train': transforms.Compose([
+        #    transforms.Resize((resize,resize)),
+        #    transforms.ToTensor(),
+        #    transforms.RandomHorizontalFlip(p=0.5),
+        #    transforms.ColorJitter(contrast=0.20, saturation=0.20),
+        #    transforms.RandomRotation(30),
+        #    AddGaussianNoise(mean=0, std=0.005),
+        #    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        #]),
+        'val': transforms.Compose([
+            transforms.Resize((resize[0],resize[1])),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+    }
+
+    return data_transforms
 
 def data_augmentation_train(mean,std_dev,resize,datascaling):
     preprocess_train_list=[]
@@ -613,13 +646,6 @@ def fetch_groundtruth(df,acc_num,modality):
     else:
         groundtruth=groundtruth.item()
     return groundtruth
-
-def adam_state_access(optimizer):
-    for group in optimizer.param_groups:
-        for p in group['params']:
-            state = optimizer.state[p]
-            print(state)
-            #print(state['exp_avg'], state['exp_avg_sq'])
 
 def update_lr(optimizer, lr):
     for param_group in optimizer.param_groups:
@@ -803,6 +829,7 @@ def class_distribution_poswt(df):
     print(pos_wt)
     return pos_wt
 
+
 def groupby_view(df):
     df['Views'] = df['Views'].str.upper().str.replace(" ","")
     view_group=df.groupby(by=['Views'])
@@ -957,7 +984,23 @@ def performance_metrics(conf_mat,y_true,y_pred,y_prob):
         auc=metrics.roc_auc_score(y_true,y_prob)
     each_model_metrics=[prec,rec,spec,f1,f1macro,f1wtmacro,acc,bal_acc,cohen_kappa,auc]
     return each_model_metrics
-    
+
+def save_model(model,optimizer,epoch,loss,path_to_model):
+    state = {
+        'epoch': epoch+1,
+        'state_dict': model.state_dict(),
+        'optim_dict': optimizer.state_dict(),
+        'loss': loss
+    }
+    torch.save(state,path_to_model)
+
+def load_model(model,optimizer,path):
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optim_dict'])
+    epoch = checkpoint['epoch']
+    return model,optimizer,epoch
+
 def confusion_matrix_norm_func(conf_mat,fig_name,class_name):
     #class_name=['W','N1','N2','N3','REM']
     conf_mat_norm=np.empty((conf_mat.shape[0],conf_mat.shape[1]))

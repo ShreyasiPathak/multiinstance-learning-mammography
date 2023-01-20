@@ -18,49 +18,49 @@ hyperparam_config=[{'lr':0.0000630957344480193, 'wtdecay':0.000316227766016838, 
 names=[]
 start = 0
 end =  1#len(hyperparam_config)
-count = 1
+count = 0
 
 for hyperparam in hyperparam_config[start:end]:
     #Get the configparser object
     config_object = ConfigParser()
     #Assume we need 2 sections in the config file, let's call them USERINFO and SERVERCONFIG
     config_object["parametersetting"] = {
-            "modelid": 110,
+            "modelid": 105,
             "attention": False,  #options = imagewise, breastwise, False
             "milpooling": False, #options=maxpool, average, attention, gatedattention, concat
             "activation": 'sigmoid', #options=sigmoid, softmax
-            "featureextractor": 'common', #options=common, viewwise, sharedseparatemix, allseparate
-            "data": 'fixed', #option=fixed, variable
+            "featureextractor": 'common', #options=common, viewwise, sharedseparatemix, allseparate -> not needed
+            "data": 'fixed', #option=fixed, variable -> change this to viewsinclusion: standard, all
             "classimbalance": 'poswt', #options=wtcostfunc, poswt, oversampling, focalloss,False
             "optimizer": 'Adam', #options=SGD, Adam
             "modality": 'MG',
             "patienceepoch": False, #10
             "use_validation": True,
-            "batchsize": 3, #options=10, 20
+            "batchsize": 10, #options=10, 20
             "numclasses": 1,
             "maxepochs": 50, #150
             "numworkers": 8,
-            "lr": 0.0001, #10**float(hyperparam['lr']), #0.001, 0.00002
-            "wtdecay": 0.0005, #10**float(hyperparam['wtdecay']), #0.0005, 0.00001
-            "sm_reg_param": False, #10**float(hyperparam['sm_reg_param']),
+            "lr": float(hyperparam['lr']), #10**float(hyperparam['lr']), #0.001, 0.00002
+            "wtdecay": float(hyperparam['wtdecay']), #10**float(hyperparam['wtdecay']), #0.0005, 0.00001
+            "sm_reg_param": float(hyperparam['sm_reg_param']), #10**float(hyperparam['sm_reg_param']),
             "groundtruthdic": {'benign':0,'malignant':1},
             "classes": [0,1],
             "baseline": False,
             "resize": [2944,1920], #options=1600, None (for padding to max image size )
             "dataaug": 'gmic', #options=small, big, wang, gmic
-            "image_cleaning": 'own', #gmic_cropmammo
-            "dataset": 'officialtestset',
-            "datasplit":'stratifiedpatient',
+            "image_cleaning": 'gmic',
+            "dataset": 'officialtestset', #change this to datasplit
+            "datasplit":'stratifiedpatient', #remove this
             "datascaling": 'scaling', #options=scaling,standardize,standardizeperimage,False
             "flipimage": True,
             "randseedother": 8, #options=8,24,80
             "randseeddata": 8, #options=8,24,80
-            "device": 'cuda:3',
+            "device": 'cuda:5',
             "trainingmethod": 'fixedlr', #multisteplr1
             "featurenorm": 'rgb',
-            "femodel": 'convnext-T', #options: resnet50pretrainedrgbwang, densenet169pretrained, gmic_resnet18_pretrained
+            "femodel": 'gmic_resnet18_pretrained', #options: resnet50pretrainedrgbwang, densenet169pretrained
             "run": start + count,
-            "topkpatch": False,
+            "topkpatch": 0.02,
             "extra": False #rgp
     }
     count+=1

@@ -16,7 +16,6 @@ import torch.utils.checkpoint as cp
 from torch import Tensor
 
 from torchvision._internally_replaced_utils import load_state_dict_from_url
-#from torch.hub import load_state_dict_from_url
 from torchvision.utils import _log_api_usage_once
 
 
@@ -175,6 +174,7 @@ class DenseNet(nn.Module):
 
         self.extra = kwargs['extra']
         self.topkpatch = kwargs['topkpatch']
+        self.pooling_type = kwargs['regionpooling']
 
         # First convolution
         self.features = nn.Sequential(
@@ -234,58 +234,51 @@ class DenseNet(nn.Module):
         index = index.expand(expanse)
         return torch.gather(input, dim, index)
 
-    def forward(self, x: Tensor) -> Tensor:
-        features = self.features(x)
-        out = F.relu(features, inplace=True)
-
-        if self.extra=='shu_ggp':
+    def region_pooling(self, out):
+        if self.pooling_type=='shu_ggp':
             out = torch.flatten(out,2)
-            #print(out.shape)
             topk_patch = torch.topk(out, int(self.topkpatch*out.shape[2]), dim=2)[0]
-            print(topk_patch.shape)
+            #print(topk_patch.shape)
             out = self.avgpool(topk_patch)
             out = out.view(out.shape[0],out.shape[1])
-            #print(out.shape)
         
-        elif self.extra=='shu_rgp':
-            #print(out)
+        elif self.pooling_type=='shu_rgp':
             #print(out.shape) # 20, 1664, 25, 25
             out = torch.permute(out,(0,2,3,1))
-            #print(out)
             #print(out.shape) # 20, 25, 25, 1664
             out = out.view(out.shape[0],-1,out.shape[3])
-            #print(out)
             #print(out.shape) # 20, 625, 1664
             patch_score = torch.sigmoid(self.fc(out))
-            #print(patch_score) 
             #print(patch_score.shape) # 20, 625, 1
             topk_index = torch.topk(patch_score.squeeze(2), int(self.topkpatch*out.shape[1]), dim=1)[1]
-            #print(topk_index)
             #print(topk_index.shape) # 20, 437
             topk_patch = self.batched_index_select(out,1,topk_index)
-            #print(topk_patch)
             #print(topk_patch.shape) #20, 437, 1664
             topk_patch_permuted = torch.permute(topk_patch,(0,2,1))
-            #print(topk_patch_permuted)
             #print(topk_patch_permuted.shape) #20, 1664, 437
             print(topk_patch_permuted.shape)
             out = self.avgpool(topk_patch_permuted)
             out = out.view(out.shape[0],out.shape[1])
             #print(out.shape) #20, 1664
-            #input('halt')
         
-        elif self.extra == 'shu_maxpool':
+        elif self.pooling_type=='maxpool':
             #print(out.shape)
             out = F.max_pool2d(out, (out.shape[2], out.shape[3]))
             #print(out.shape)
             out = torch.flatten(out, 1)
             #print(out.shape)
-
-        else:
+        
+        elif self.pooling_type=='avgpool':
             out = F.adaptive_avg_pool2d(out, (1, 1))
             out = torch.flatten(out, 1)
-            print(out.shape)
+            #print(out.shape)
+        
+        return out
 
+    def forward(self, x: Tensor) -> Tensor:
+        features = self.features(x)
+        out = F.relu(features, inplace=True)
+        out = self.region_pooling(out)
         out = self.fc(out)
         return out
 
@@ -300,7 +293,6 @@ def _load_state_dict(model: nn.Module, model_url: str, progress: bool) -> None:
     )
 
     state_dict = load_state_dict_from_url(model_url, progress=progress)
-    #print(len(list(state_dict.keys()))) #846
     for key in list(state_dict.keys()):
         res = pattern.match(key)
         if res:
@@ -310,17 +302,8 @@ def _load_state_dict(model: nn.Module, model_url: str, progress: bool) -> None:
     
     new_state_dict = model.state_dict()
     state_dict = {k: v for k, v in state_dict.items() if (k in new_state_dict)}
-    #print(len(list(state_dict.keys()))) #844
-    #print(len(list(new_state_dict.keys()))) #1015
     new_state_dict.update(state_dict)
     model.load_state_dict(new_state_dict)
-    #for name, param in model.named_parameters():
-    #    if param.requires_grad:
-    #        if 'fc' in name or 'features.conv0' in name:
-    #            print(name)
-    #            print(param)
-
-
 
 def _densenet(
     arch: str,
@@ -340,28 +323,7 @@ def _densenet(
     if pretrained:
         _load_state_dict(model, model_urls[arch], progress)
     
-    #for name, param in model.named_parameters():
-    #    if param.requires_grad:
-    #        if 'fc' in name or 'features.conv0' in name:
-    #            print(name)
-    #            print(param)
     return model
-
-    '''if pretrained:
-
-        pretrained_dict = load_state_dict_from_url(model_urls[arch],progress=progress)
-        print(len(list(pretrained_dict.keys())))
-        model_dict = model.state_dict()
-        #print(model_dict.keys())
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in model_dict) and (k!='classifier.weight') and (k!='classifier.bias')}
-        print(pretrained_dict.keys())
-        input('halt')
-        # 2. overwrite entries in the existing state dict
-        model_dict.update(pretrained_dict) 
-        model.load_state_dict(model_dict)
-    return model
-    '''
 
 
 def densenet121(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> DenseNet:

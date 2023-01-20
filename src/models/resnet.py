@@ -9,12 +9,8 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
-#from .._internally_replaced_utils import load_state_dict_from_url
 from torchvision._internally_replaced_utils import load_state_dict_from_url
-#from torch.hub import load_state_dict_from_url
 from typing import Type, Any, Callable, Union, List, Optional
-#from torchinfo import summary
-
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'resnext50_32x4d', 'resnext101_32x8d',
@@ -180,11 +176,15 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        print("inchans:",kwargs['inchans'])
+        
+        self.pooling_type = kwargs['regionpooling']
+        self.topkpatch = kwargs['topkpatch']
+        
         if kwargs['inchans'] == 1:
             self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         elif kwargs['inchans'] == 3:
             self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -193,17 +193,12 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
         
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.avgpool_2d = nn.AdaptiveAvgPool2d((1, 1))
+        self.avgpool_1d = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
-        #self.weightedpool = conv1x1(512, 1, 1)
-        #self.regionpool=kwargs['fc']
-        #self.avgpool = nn.AdaptiveAvgPool1d(1)
-        #self.fc = nn.Linear(2500, num_classes)
-        
-        '''self.fc1 = nn.Linear(512 * block.expansion, 1024)
-        self.fc2 = nn.Linear(1024, 256)
-        self.fc3 = nn.Linear(256, num_classes)'''
+        if self.pooling_type == '1x1conv':
+            self.weightedpool = conv1x1(512, 1, 1)
         
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -257,6 +252,51 @@ class ResNet(nn.Module):
         index = index.expand(expanse)
         return torch.gather(input, dim, index)
 
+    def region_pooling(self, out):
+        if self.pooling_type=='shu_ggp':
+            out = torch.flatten(out,2)
+            topk_patch = torch.topk(out, int(self.topkpatch*out.shape[2]), dim=2)[0]
+            #print(topk_patch.shape)
+            out = self.avgpool_1d(topk_patch)
+            out = out.view(out.shape[0],out.shape[1])
+        
+        elif self.pooling_type=='shu_rgp':
+            #print(out.shape) # 20, 1664, 25, 25
+            out = torch.permute(out,(0,2,3,1))
+            #print(out.shape) # 20, 25, 25, 1664
+            out = out.view(out.shape[0],-1,out.shape[3])
+            #print(out.shape) # 20, 625, 1664
+            patch_score = torch.sigmoid(self.fc(out))
+            #print(patch_score.shape) # 20, 625, 1
+            topk_index = torch.topk(patch_score.squeeze(2), int(self.topkpatch*out.shape[1]), dim=1)[1]
+            #print(topk_index.shape) # 20, 437
+            topk_patch = self.batched_index_select(out,1,topk_index)
+            #print(topk_patch.shape) #20, 437, 1664
+            topk_patch_permuted = torch.permute(topk_patch,(0,2,1))
+            #print(topk_patch_permuted.shape) #20, 1664, 437
+            print(topk_patch_permuted.shape)
+            out = self.avgpool_1d(topk_patch_permuted)
+            out = out.view(out.shape[0],out.shape[1])
+            #print(out.shape) #20, 1664
+        
+        elif self.pooling_type == '1x1conv':
+            out = self.weightedpool(out)
+            out = torch.flatten(out, 1)
+
+        elif self.pooling_type=='maxpool':
+            #print(out.shape)
+            out = F.max_pool2d(out, (out.shape[2], out.shape[3]))
+            #print(out.shape)
+            out = torch.flatten(out, 1)
+            #print(out.shape)
+        
+        elif self.pooling_type=='avgpool':
+            out = self.avgpool_2d(out)
+            out = torch.flatten(out, 1)
+            #print(out.shape)
+        
+        return out
+
     def _forward_impl(self, x: Tensor) -> Tensor:
         # See note [TorchScript super()]
         x = self.conv1(x)
@@ -268,40 +308,10 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        
-        #normal resnet
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        
-        #divided by 512 normalization of feature map
-        '''channels = x.shape[1]
-        x = self.weightedpool(x)/channels
-        x = torch.flatten(x, 1)'''
 
-        '''
-        #rgp
-        x = torch.permute(x,(0,2,3,1))
-        x = x.view(x.shape[0],-1,x.shape[3])
-        patch_score = F.softmax(self.fc(x), dim=2)
-        topk_index = torch.topk(patch_score[:,:,1], int(0.7*x.shape[1]), dim=1)[1]
-        topk_patch = self.batched_index_select(x,1,topk_index)
-        topk_patch_permuted = torch.permute(topk_patch,(0,2,1))
-        x = self.avgpool(topk_patch_permuted)
-        x = x.view(x.shape[0],x.shape[1])
-        '''
-        
-        #ggp
-        '''x = torch.flatten(x,2)
-        topk_patch = torch.topk(x, int(0.7*x.shape[2]), dim=2)[0]
-        x = self.avgpool(topk_patch)
-        x = x.view(x.shape[0],x.shape[1])
-        '''
+        x = self.region_pooling(x)
         x = self.fc(x)
         
-        '''x = self.fc1(x)
-        x = self.fc2(x)
-        x= self.fc3(x)'''
-
         return x
 
     def forward(self, x: Tensor) -> Tensor:
@@ -316,27 +326,17 @@ def _resnet(
     progress: bool,
     **kwargs: Any
 ) -> ResNet:
+    
     if kwargs['activation']=='softmax':
         model = ResNet(block, layers, 2, **kwargs)
     elif kwargs['activation']=='sigmoid':
         model = ResNet(block, layers, 1, **kwargs)
+    
     if pretrained:
         pretrained_dict = load_state_dict_from_url(model_urls[arch],progress=progress)
-        print(len(list(pretrained_dict.keys())))
-        if kwargs['inchans'] == 1:
-            conv1_weight = pretrained_dict['conv1.weight']
-            if kwargs['wt_combine']=='resnet18pretrainedsum' or kwargs['wt_combine']=='resnet50pretrainedsum' or kwargs['wt_combine']=='resnet50pretrainedsumwang':
-                pretrained_dict['conv1.weight'] = conv1_weight.sum(dim=1, keepdim=True)
-            elif kwargs['wt_combine']=='resnet18pretrainedavg' or kwargs['wt_combine']=='resnet50pretrainedavg' or kwargs['wt_combine']=='resnet50pretrainedavgwang':
-                pretrained_dict['conv1.weight'] = torch.mean(conv1_weight, dim=1, keepdim=True)
-            elif kwargs['wt_combine']=='resnet18pretrainedrchan' or kwargs['wt_combine']=='resnet50pretrainedrchan':
-                pretrained_dict['conv1.weight'] = conv1_weight[:,0,:,:].unsqueeze(1)
-        
         model_dict = model.state_dict()
         # 1. filter out unnecessary keys
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if (k in model_dict) and (k!='fc.weight') and (k!='fc.bias')}
-        print(len(list(pretrained_dict.keys())))
-        #print(pretrained_dict)
         # 2. overwrite entries in the existing state dict
         model_dict.update(pretrained_dict) 
         model.load_state_dict(model_dict)
@@ -454,7 +454,3 @@ def wide_resnet101_2(pretrained: bool = False, progress: bool = True, **kwargs: 
     kwargs['width_per_group'] = 64 * 2
     return _resnet('wide_resnet101_2', Bottleneck, [3, 4, 23, 3],
                    pretrained, progress, **kwargs)
-    
-#model = resnet18()
-#test_input=torch.randn((1,1,1600,1600))
-#summary(model,input_size=(1,1,1600,1600), depth=4)#,[4],['LCC','LMLO','RCC','RMLO'],depth=5)

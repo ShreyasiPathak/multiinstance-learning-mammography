@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import openpyxl as op
 import torch.nn as nn
+from torch import linalg as LA
 
 import itertools
 import matplotlib.pyplot as plt
@@ -29,6 +30,14 @@ from openpyxl import Workbook
 import utils
 #import model
 import tensorboard_log
+
+def gmic_loss_fn(bcelogitsloss, bceloss, y_local, y_global, y_fusion, saliency_map, y_true, sm_reg_param):
+    local_network_loss = bcelogitsloss(y_local, y_true)
+    global_network_loss = bceloss.forward(y_global, y_true)
+    fusion_network_loss = bcelogitsloss(y_fusion, y_true)
+    saliency_map_regularizer = torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0],saliency_map.shape[1],-1), ord=1, dim=2))
+    total_loss = local_network_loss + global_network_loss + fusion_network_loss + sm_reg_param*saliency_map_regularizer
+    return total_loss
 
 def results_viewwise(sheet4, val_stats_viewwise):
     header=[]
@@ -85,7 +94,7 @@ def case_label_from_SIL(df_test, test_labels_all, test_pred_all, sheet3):
     return sheet3
 
 
-def test(model, data_iterator_test, batches_test, activation, sheet2, sheet3, sheet4, device, classes, df_test):
+def test(model, data_iterator_test, batches_test, activation, sheet2, sheet3, sheet4, device, classes, df_test, featureextractormodel, sm_reg_param):
     """Testing"""
     model.eval()
     total_images=0
@@ -98,7 +107,11 @@ def test(model, data_iterator_test, batches_test, activation, sheet2, sheet3, sh
     #val_stats_viewwise={}
     conf_mat_test=np.zeros((2,2))
     
-    lossfn1 = loss_fn(activation)
+    if featureextractormodel=='gmic_resnet18_pretrained':
+        bcelogitloss = nn.BCEWithLogitsLoss()
+        bceloss = nn.BCELoss()
+    else:
+        lossfn1 = loss_fn(activation)
     
     with torch.no_grad():
         for test_idx, test_batch, test_labels in data_iterator_test:
@@ -109,16 +122,26 @@ def test(model, data_iterator_test, batches_test, activation, sheet2, sheet3, sh
             #print("test batch:",test_batch.shape)
             #print("test labels:",test_labels.shape)
             #with torch.cuda.amp.autocast():
-            output_test = model(test_batch)
-            if activation=='sigmoid':
-                output_test = output_test.squeeze(1)
-                output_test = output_test.view(-1)                                                 
+            if featureextractormodel=='gmic_resnet18_pretrained':
+                output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch) # compute model output, loss and total train loss over one epoch
+                output_batch_local = output_batch_local.view(-1)
+                output_batch_global = output_batch_global.view(-1)
+                output_batch_fusion = output_batch_fusion.view(-1)
                 test_labels = test_labels.float()
-                test_pred = torch.ge(torch.sigmoid(output_test), torch.tensor(0.5)).float()
-                loss1 = lossfn1(output_test, test_labels).item()
-            elif activation=='softmax':
-                test_pred = output_test.argmax(dim=1, keepdim=True)
-                loss1 = lossfn1(output_test, test_labels).item()
+                test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+                loss1 = gmic_loss_fn(bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, sm_reg_param).item()
+                output_test = output_batch_fusion
+            else:
+                output_test = model(test_batch)
+                if activation=='sigmoid':
+                    output_test = output_test.squeeze(1)
+                    output_test = output_test.view(-1)                                                 
+                    test_labels = test_labels.float()
+                    test_pred = torch.ge(torch.sigmoid(output_test), torch.tensor(0.5)).float()
+                    loss1 = lossfn1(output_test, test_labels).item()
+                elif activation=='softmax':
+                    test_pred = output_test.argmax(dim=1, keepdim=True)
+                    loss1 = lossfn1(output_test, test_labels).item()
             
             if batch_test_no==0:
                 test_pred_all=test_pred
