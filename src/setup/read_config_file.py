@@ -29,7 +29,6 @@ def read_config_file(config_file):
     config_params['optimizer'] = config_object["parametersetting"]['optimizer']
     config_params['milpooling'] = config_object["parametersetting"]['milpooling']
     config_params['device'] = config_object["parametersetting"]['device']
-    config_params['ROIpatches'] = int(config_object["parametersetting"]['ROIpatches'])
     config_params['learningtype'] = config_object["parametersetting"]['learningtype']
     config_params['channel'] = config_object["parametersetting"]['channel']
     config_params['labeltouse'] = config_object["parametersetting"]['labeltouse']
@@ -129,6 +128,12 @@ def read_config_file(config_file):
             config_params['imagecleaning'] = False
     except:
         config_params['imagecleaning'] = False
+
+    config_params['ROIpatches'] = config_object["parametersetting"]['ROIpatches']
+    if config_params['ROIpatches'] == 'False':
+        config_params['ROIpatches'] = False
+    else:
+        config_params['ROIpatches'] = int(config_params['ROIpatches'])
     
     config_params['SIL_csvfilepath'] = config_object["parametersetting"]['SIL_csvfilepath']
     if config_params['SIL_csvfilepath'] == 'False':

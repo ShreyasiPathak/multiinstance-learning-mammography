@@ -116,9 +116,9 @@ def input_file_creation(config_params):
         df_val = pd.concat([df_val,df_val1])
         df_test = pd.concat([df_test,df_test1])
     
-    #df_train = df_train[:20]
-    #df_val = df_val[:5]
-    #df_test = df_test[:10]
+    df_train = df_train[:20]
+    df_val = df_val[:5]
+    df_test = df_test[:10]
     total_instances = df_modality.shape[0]
     print("Total instances:",total_instances)
 
