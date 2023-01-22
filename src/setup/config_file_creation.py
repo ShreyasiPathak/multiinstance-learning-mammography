@@ -26,7 +26,7 @@ for hyperparam in hyperparam_config[start:end]:
     config_object = ConfigParser()
     #Assume we need 2 sections in the config file, let's call them USERINFO and SERVERCONFIG
     config_object["parametersetting"] = {
-            "modelid": 2,
+            "modelid": 4,
             "run": False,
             "attention": False,  #options = imagewise, breastwise, False
             "milpooling": False, #options=maxpool, average, attention, gatedattention, concat/ ismax, ismean, isatt, isgatt, esmax, esmean, esatt, esgatt
@@ -53,13 +53,13 @@ for hyperparam in hyperparam_config[start:end]:
             "flipimage": False,
             "randseedother": 80, #options=8, 24, 80
             "randseeddata": 8, #options=8, 24, 80
-            "device": 'cuda:1',
+            "device": 'cuda:4',
             "trainingmethod": 'lrdecayshu', #options: multisteplr1, fixedlr, lrdecayshu, lrdecaykim
             "channel": 3, #options: 3 for rgb, 1 for grayscale
-            "regionpooling": 'maxpool', #options: shu_ggp, shu_rgp, avgpool, maxpool, 1x1conv, t-pool
+            "regionpooling": 'shu_ggp', #options: shu_ggp, shu_rgp, avgpool, maxpool, 1x1conv, t-pool
             "femodel": 'densenet169', #options: resnet50pretrainedrgbwang, densenet169pretrained
             "pretrained": True, #options: True, False
-            "topkpatch": False, #options: 0.02, 0.03, 0.05, 0.1
+            "topkpatch": 0.7, #options: 0.02, 0.03, 0.05, 0.1
             "ROIpatches": False, #options: any number
             "learningtype": 'SIL', #options = SIL, MIL
             "dataset": 'cbis-ddsm', #options = cbis-ddsm, zgt, vindr

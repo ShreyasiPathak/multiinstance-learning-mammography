@@ -51,7 +51,7 @@ def model_initialization(config_params):
     if config_params['learningtype'] == 'SIL':
         model = sil_mil_model.SILmodel(config_params)
     elif config_params['learningtype'] == 'MIL':
-        model = sil_mil_model.SeparatePipelineMIL(config_params)
+        model = sil_mil_model.MILmodel(config_params)
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(name)
