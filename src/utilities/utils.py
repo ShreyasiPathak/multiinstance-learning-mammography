@@ -30,8 +30,10 @@ from collections import Counter
 import operator
 from sklearn.model_selection import GroupShuffleSplit
 from torch.autograd import Variable
-from data_loading import augmentations, loading
 import imageio
+
+from data_loading import augmentations, loading
+
 
 groundtruth_dic={'benign':0,'malignant':1}
 inverted_groundtruth_dic={0:'benign',1:'malignant'}
@@ -947,14 +949,14 @@ def performance_metrics(conf_mat,y_true,y_pred,y_prob):
     each_model_metrics=[prec,rec,spec,f1,f1macro,f1wtmacro,acc,bal_acc,cohen_kappa,auc]
     return each_model_metrics
 
-def save_model(model,optimizer,epoch,loss,path_to_model):
+def save_model(model, optimizer, epoch, loss, path_to_model):
     state = {
         'epoch': epoch+1,
         'state_dict': model.state_dict(),
         'optim_dict': optimizer.state_dict(),
         'loss': loss
     }
-    torch.save(state,path_to_model)
+    torch.save(state, path_to_model)
 
 def load_model(model, optimizer, path):
     checkpoint = torch.load(path)

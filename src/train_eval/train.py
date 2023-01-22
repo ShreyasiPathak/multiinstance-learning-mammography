@@ -7,44 +7,26 @@ Created on Wed Sep 22 16:43:24 2021
 
 import re
 import os
-import ast
-import sys
 import math
 import torch
 import datetime
 import argparse
-import itertools
 import random
 
 import glob
 import numpy as np
 import pandas as pd
-import openpyxl as op
-import torch.nn as nn
-from PIL import Image
 from sklearn import metrics
-import torch.optim as optim
-from openpyxl import Workbook
-from configparser import ConfigParser
-from torch import linalg as LA
 
-from torchvision import models
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from torchvision import transforms
-from sklearn.metrics import confusion_matrix
-from torchvision.models.resnet import BasicBlock
-from torch.utils.tensorboard import SummaryWriter
-from sklearn.model_selection import StratifiedKFold
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GroupShuffleSplit
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-import test
+print("File location using os.getcwd():", os.getcwd())
+
+import test, optimization, loss_function, evaluation, data_loader
 from models import sil_mil_model
 from utilities import pytorchtools, utils
-from train_eval import optimization, loss_function, evaluation, data_loader
 from setup import read_config_file, read_input_file, output_files_setup
 
 #import tensorboard_log
@@ -89,7 +71,8 @@ def model_checkpoint(config_params, path_to_model):
 
 def train(config_params, model, path_to_model, data_iterator_train, data_iterator_val, batches_train, batches_val, df_train):
     '''Training'''
-    modelcheckpoint = model_checkpoint(config_params, path_to_model)
+    if config_params['usevalidation']:
+        modelcheckpoint = model_checkpoint(config_params, path_to_model)
     optimizer = optimization.optimizer_fn(config_params, model)
     scheduler = optimization.select_lr_scheduler(config_params, optimizer)
     
@@ -163,7 +146,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
            
             #performance metrics of training dataset
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
-            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['epochs'], batch_no, batches_train, loss.item()))
+            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()))
         
         if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu':
             current_lr=scheduler.get_last_lr()[0]
@@ -176,9 +159,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         # early_stopping needs the validation loss to check if it has decresed, 
         # and if it has, it will make a checkpoint of the current model
         
-        correct_test, total_images_val, loss_val, conf_mat_val, auc_val = validation(config_params, model, data_iterator_val, batches_val, df_val, epoch)
-        valid_loss = loss_val/total_images_val
-        evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val, path_to_results_xlsx, path_to_results_text)
+        if config_params['usevalidation']:
+            correct_test, total_images_val, loss_val, conf_mat_val, auc_val = validation(config_params, model, data_iterator_val, batches_val, df_val, epoch)
+            valid_loss = loss_val/total_images_val
+            evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val, path_to_results_xlsx, path_to_results_text)
         
         if config_params['patienceepochs']:
             modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
@@ -189,9 +173,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             if config_params['usevalidation']:
                 modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
             else:
-                utils.save_model(model, optimizer, epoch, running_train_loss)
-                per_model_metrics, _ = test.test(config_params, model, dataloader_val, batches_val, path_to_results_xlsx, df_test)
-                evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train,total_images_train,loss_train,None, None, None,epoch, conf_mat_train, None, current_lr, path_to_results_xlsx, path_to_results_text)
+                utils.save_model(model, optimizer, epoch, running_train_loss, path_to_model)
+                per_model_metrics, conf_mat_test = test.run_test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
+                evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train, total_images_train, loss_train, None, None, None, epoch, conf_mat_train, None, current_lr, None, path_to_results_xlsx, path_to_results_text)
+                evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
                 evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
 
         if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu': 
@@ -322,11 +307,16 @@ if __name__=='__main__':
         
         g = set_random_seed(config_params)
         
-        path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup(config_file, config_params, num_config_start, num_config_end)
+        if config_params['usevalidation']:
+            path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
+            df_train, df_val, df_test, batches_train, batches_val, batches_test = read_input_file.input_file_creation(config_params)
+            dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, g)
+        else:
+            path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
+            df_train, df_test, batches_train, batches_test = read_input_file.input_file_creation(config_params)
+            dataloader_train, dataloader_test = data_loader.dataloader(config_params, df_train, None, df_test, g)
         
-        df_train, df_val, df_test, batches_train, batches_val, batches_test = read_input_file.input_file_creation(config_params)
         
-        dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, g)
         
         model, total_params = model_initialization(config_params)
 
@@ -337,9 +327,10 @@ if __name__=='__main__':
             train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
 
         #hyperparameter results
-        per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val)
-        hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepoch'], config_params['batchsize']] + per_model_metrics_val
-        evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
+        if config_params['usevalidation']:
+            per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val)
+            hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepoch'], config_params['batchsize']] + per_model_metrics_val
+            evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
 
         #test the model
         per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test)

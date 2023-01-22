@@ -13,7 +13,8 @@ def input_file_creation(config_params):
             print("df modality shape:",df_modality.shape)
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
-            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ImageName']
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
+            df_modality['Groundtruth'] = df_modality['ImageLabel']
             
             df_train = df_modality[df_modality['ImageName'].str.contains('Training')]
             if config_params['usevalidation']:
@@ -26,7 +27,7 @@ def input_file_creation(config_params):
             print("df modality shape:",df_modality.shape)
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
-            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['FolderName']
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
 
             #bags with exactly 4 views
             df_modality1  = df_modality[df_modality['Views'].str.split('+').str.len()==4.0]
@@ -96,7 +97,7 @@ def input_file_creation(config_params):
         print("df modality shape:",df_modality.shape)
         df_modality=df_modality[~df_modality['Views'].isnull()]
         print("df modality no null view:",df_modality.shape)
-        df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['Path']
+        df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
 
         #bags with exactly 4 views
         df_modality1=df_modality[df_modality['Views'].str.split('+').str.len()==4.0]
@@ -116,9 +117,9 @@ def input_file_creation(config_params):
         df_val = pd.concat([df_val,df_val1])
         df_test = pd.concat([df_test,df_test1])
     
-    df_train = df_train[:20]
-    df_val = df_val[:5]
-    df_test = df_test[:10]
+    #df_train = df_train[:20]
+    #df_val = df_val[:5]
+    #df_test = df_test[:10]
     total_instances = df_modality.shape[0]
     print("Total instances:",total_instances)
 
@@ -164,4 +165,7 @@ def input_file_creation(config_params):
         
         numbatches_test = int(math.ceil(test_instances/config_params['batchsize']))
     
-    return df_train, df_val, df_test, numbatches_train, numbatches_val, numbatches_test
+    if config_params['usevalidation']:
+        return df_train, df_val, df_test, numbatches_train, numbatches_val, numbatches_test
+    else:
+        return df_train, df_test, numbatches_train, numbatches_test

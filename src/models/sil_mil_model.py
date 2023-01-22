@@ -3,14 +3,13 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from torchvision import models
-import resnetkim
-import resnet
-import densenet
-import gmic
-import math
+
+
 import torchvision
 from torchvision.models.resnet import BasicBlock
 import warnings
+
+from models import resnetkim, resnet, densenet, gmic
 
 views_allowed=['LCC','LMLO','RCC','RMLO']
 

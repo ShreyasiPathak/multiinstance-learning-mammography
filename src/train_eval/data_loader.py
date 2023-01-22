@@ -96,4 +96,7 @@ def dataloader(config_params, df_train, df_val, df_test, g):
     dataset_gen_test = utils.BreastCancerDataset_generator(config_params, df_test, preprocess_val)
     dataloader_test = DataLoader(dataset_gen_test, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_test)
     
-    return dataloader_train, dataloader_val, dataloader_test
+    if config_params['usevalidation']:
+        return dataloader_train, dataloader_val, dataloader_test
+    else:
+        return dataloader_train, dataloader_test

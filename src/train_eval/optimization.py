@@ -49,7 +49,7 @@ def optimizer_fn(config_params, model):
         elif config_params['optimizer']=='SGD':
             optimizer = optim.SGD(param_list)
     
-    elif config_params['viewsinclusion'] == 'fixed':
+    elif config_params['viewsinclusion'] == 'standard':
         classifier=[]
         rest_group=[]
         if config_params['optimizer']=='Adam':

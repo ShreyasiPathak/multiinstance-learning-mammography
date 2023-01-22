@@ -24,10 +24,11 @@ Module that define the core logic of GMIC
 import torch
 import torch.nn as nn
 import numpy as np
-import gmic_modules as m
+
 from torchvision._internally_replaced_utils import load_state_dict_from_url
 
 from utilities import utils
+from models import gmic_modules as m
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-f37072fd.pth',

@@ -6,22 +6,13 @@ Created on Wed Sep 22 16:43:24 2021
 """
 
 import os
-import re
 import sys
-import glob
-import torch
-import random
-import argparse
-import numpy as np
 import openpyxl as op
 from openpyxl import Workbook
 
-from setup import read_input_file, read_config_file
-from train_eval import train, test
-
 def output_files(config_file, config_params, num_config_start, num_config_end):
     #output files path
-    path_to_output=config_file
+    path_to_output = "/".join(config_file.split('/')[:-1])+'/'
 
     #check output_folder path
     if not os.path.exists(path_to_output):
@@ -60,7 +51,10 @@ def output_files(config_file, config_params, num_config_start, num_config_end):
         wb=Workbook()
         sheet1 = wb.active
         sheet1.title="train_val_results"
-        header=['Epoch','lr','Avg Loss Train','Accuracy Train','F1macro Train','Recall Train','Speci Train','Avg Loss Val','Accuracy Val','F1macro Val','Recall Val','Speci Val','AUC Val']
+        if config_params['usevalidation']:
+            header=['Epoch','lr','Avg Loss Train','Accuracy Train','F1macro Train','Recall Train','Speci Train','Avg Loss Val','Accuracy Val','F1macro Val','Recall Val','Speci Val','AUC Val']
+        else:
+            header=['Epoch','lr','Avg Loss Train','Accuracy Train','F1macro Train','Recall Train','Speci Train']+['Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC']
         sheet1.append(header)
         sheet2 = wb.create_sheet('confmat_train_val_test')
         sheet3 = wb.create_sheet('test_results') 
@@ -68,20 +62,24 @@ def output_files(config_file, config_params, num_config_start, num_config_end):
         sheet4 = wb.create_sheet('metrics_view_wise')
     
     # set file path
-    if os.path.isfile(path_to_hyperparam_search):
-        wb1 = op.load_workbook(path_to_hyperparam_search)
-        sheet5 = wb1['hyperparam_results']
-    else:
-        wb1=Workbook()
-        sheet5 = wb1.active
-        sheet5.title = "hyperparam_results"
-        header = ['config_file','lr','wtdecay','sm_reg_param','trainingscheme','optimizer','patienceepoch','batchsize','Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC']
-        sheet5.append(header)
-    
-    wb.save(path_to_results)
-    wb1.save(path_to_hyperparam_search)
+    if config_params['usevalidation']:
+        if os.path.isfile(path_to_hyperparam_search):
+            wb1 = op.load_workbook(path_to_hyperparam_search)
+            sheet5 = wb1['hyperparam_results']
+        else:
+            wb1=Workbook()
+            sheet5 = wb1.active
+            sheet5.title = "hyperparam_results"
+            header = ['config_file','lr','wtdecay','sm_reg_param','trainingscheme','optimizer','patienceepoch','batchsize','Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC']
+            sheet5.append(header)
+        wb1.save(path_to_hyperparam_search)
 
-    return path_to_model, path_to_results, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search 
+    wb.save(path_to_results)
+
+    if config_params['usevalidation']:
+        return path_to_model, path_to_results, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search 
+    else:
+        return path_to_model, path_to_results, path_to_results_text, path_to_learning_curve, path_to_log_file
 
 
     

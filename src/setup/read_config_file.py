@@ -30,7 +30,7 @@ def read_config_file(config_file):
     config_params['milpooling'] = config_object["parametersetting"]['milpooling']
     config_params['device'] = config_object["parametersetting"]['device']
     config_params['learningtype'] = config_object["parametersetting"]['learningtype']
-    config_params['channel'] = config_object["parametersetting"]['channel']
+    config_params['channel'] = int(config_object["parametersetting"]['channel'])
     config_params['labeltouse'] = config_object["parametersetting"]['labeltouse']
     config_params['papertoreproduce'] = config_object["parametersetting"]['papertoreproduce']
     config_params['regionpooling'] = config_object["parametersetting"]['regionpooling']
@@ -142,7 +142,7 @@ def read_config_file(config_file):
     if config_params['MIL_csvfilepath'] == 'False':
         config_params['MIL_csvfilepath'] = False
     config_params['preprocessed_imagepath'] = config_object["parametersetting"]['preprocessed_imagepath']
-    config_params['bitdepth'] = config_object["parametersetting"]['bitdepth']
+    config_params['bitdepth'] = int(config_object["parametersetting"]['bitdepth'])
 
     if config_params['femodel']=='gmic_resnet18':
         config_params['gmic_parameters'] = {

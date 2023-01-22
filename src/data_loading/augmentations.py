@@ -20,7 +20,7 @@
 import cv2
 import numpy as np
 
-from constants import VIEWS
+from utilities import constants
 
 
 def shift_window_inside_image(start, end, image_axis_size, input_axis_size):
@@ -115,14 +115,14 @@ def sample_crop_best_center(image, input_size, random_number_generator, max_crop
 
     pad_y_top, pad_y_bottom, pad_x_right = 0, 0, 0
 
-    if VIEWS.is_cc(view):
+    if constants.VIEWS.is_cc(view):
         if image.shape[0] < input_size[0] + (max_crop_noise[0] + max_crop_size_noise) * 2:
             # Image is smaller than window size + noise margin in y direction.
             # CC view: pad at both top and bottom
             top, bottom, pad_y_top, pad_y_bottom = zero_pad_and_align_window(image.shape[0], input_size[0],
                                                                              max_crop_noise[0] + max_crop_size_noise,
                                                                              True)
-    elif VIEWS.is_mlo(view):
+    elif constants.VIEWS.is_mlo(view):
         if image.shape[0] < input_size[0] + max_crop_noise[0] + max_crop_size_noise:
             # Image is smaller than window size + noise margin in y direction.
             # MLO view: only pad at the bottom

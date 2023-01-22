@@ -18,9 +18,9 @@
 # ==============================================================================
 
 import numpy as np
-from constants import VIEWS
+from utilities import constants
 import imageio
-import augmentations as augmentations
+from data_loading import augmentations
 
 
 def flip_image(image, view, horizontal_flip):
@@ -29,10 +29,10 @@ def flip_image(image, view, horizontal_flip):
     In medical, keeps the original directions unless horizontal_flip is set.
     """
     if horizontal_flip == 'NO':
-        if VIEWS.is_right(view):
+        if constants.VIEWS.is_right(view):
             image = np.fliplr(image)
     elif horizontal_flip == 'YES':
-        if VIEWS.is_left(view):
+        if constants.VIEWS.is_left(view):
             image = np.fliplr(image)
 
     return image
