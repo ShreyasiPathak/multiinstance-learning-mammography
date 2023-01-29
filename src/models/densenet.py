@@ -174,6 +174,7 @@ class DenseNet(nn.Module):
         
         self.topkpatch = kwargs['topkpatch']
         self.pooling_type = kwargs['regionpooling']
+        self.learningtype = kwargs['learningtype']
 
         # First convolution
         self.features = nn.Sequential(
@@ -209,7 +210,8 @@ class DenseNet(nn.Module):
         self.features.add_module("norm5", nn.BatchNorm2d(num_features))
 
         # Linear layer
-        self.fc = nn.Linear(num_features, num_classes)
+        if self.learningtype == 'SIL':
+            self.fc = nn.Linear(num_features, num_classes)
         
         self.avgpool = nn.AdaptiveAvgPool1d(1)
 
@@ -278,7 +280,8 @@ class DenseNet(nn.Module):
         features = self.features(x)
         out = F.relu(features, inplace=True)
         out = self.region_pooling(out)
-        out = self.fc(out)
+        if self.learningtype == 'SIL':
+            out = self.fc(out)
         return out
 
 

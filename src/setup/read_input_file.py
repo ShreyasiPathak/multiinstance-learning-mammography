@@ -27,7 +27,6 @@ def input_file_creation(config_params):
             print("df modality shape:",df_modality.shape)
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
-            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
 
             #bags with exactly 4 views
             df_modality1  = df_modality[df_modality['Views'].str.split('+').str.len()==4.0]
@@ -59,13 +58,15 @@ def input_file_creation(config_params):
             print(len(test_check))
 
             if config_params['labeltouse'] == 'imagelabel':
-                df_instances = pd.read_csv(config_params['SIL_csvfilepath'])
+                df_instances = pd.read_csv(config_params['SIL_csvfilepath'], sep=';')
                 df_instances['Groundtruth'] = df_instances['ImageLabel']
+                df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath']
                 #pd.read_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv', sep=';')
 
             elif config_params['labeltouse'] == 'caselabel':
-                df_instances = pd.read_csv(config_params['SIL_csvfilepath'])
+                df_instances = pd.read_csv(config_params['SIL_csvfilepath'], sep=';')
                 df_instances['Groundtruth'] = df_instances['CaseLabel']
+                df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath']
                 #df_instances=pd.read_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_caselabel_groundtruth.csv', sep=';')
 
             #taking the case-level patient rows from the SIL csv path 
@@ -117,7 +118,7 @@ def input_file_creation(config_params):
         df_val = pd.concat([df_val,df_val1])
         df_test = pd.concat([df_test,df_test1])
     
-    #df_train = df_train[:20]
+    #df_train = df_train[100:130]
     #df_val = df_val[:5]
     #df_test = df_test[:10]
     total_instances = df_modality.shape[0]
@@ -140,14 +141,17 @@ def input_file_creation(config_params):
             
     if config_params['viewsinclusion'] == 'all':
         #group by view
-        df_train, view_group_names_train = utils.groupby_view(df_train)
+        view_group_indices, view_group_names_train = utils.groupby_view_train(df_train)
         print(view_group_names_train)
         
-        df_val, view_group_names_val = utils.groupby_view(df_val)
+        df_val, view_group_names_val = utils.groupby_view_test(df_val)
         print(view_group_names_val)
         
-        df_test, view_group_names_test = utils.groupby_view(df_test)
+        df_test, view_group_names_test = utils.groupby_view_test(df_test)
         print(view_group_names_test)
+        #print(df_test)
+    elif config_params['viewsinclusion'] == 'standard':
+        view_group_indices = None
 
     #calculate number of batches
     if config_params['viewsinclusion'] == 'all':
@@ -166,6 +170,6 @@ def input_file_creation(config_params):
         numbatches_test = int(math.ceil(test_instances/config_params['batchsize']))
     
     if config_params['usevalidation']:
-        return df_train, df_val, df_test, numbatches_train, numbatches_val, numbatches_test
+        return df_train, df_val, df_test, numbatches_train, numbatches_val, numbatches_test, view_group_indices
     else:
-        return df_train, df_test, numbatches_train, numbatches_test
+        return df_train, df_test, numbatches_train, numbatches_test, view_group_indices

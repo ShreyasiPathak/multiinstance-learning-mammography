@@ -22,9 +22,7 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-print("File location using os.getcwd():", os.getcwd())
-
-import test, optimization, loss_function, evaluation, data_loader
+from train_eval import test, optimization, loss_function, evaluation, data_loader
 from models import sil_mil_model
 from utilities import pytorchtools, utils
 from setup import read_config_file, read_input_file, output_files_setup
@@ -64,7 +62,7 @@ def model_initialization(config_params):
 
 def model_checkpoint(config_params, path_to_model):
     if config_params['patienceepochs']:
-        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, patience=config_params['patienceepoch'], verbose=True)
+        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, patience=config_params['patienceepochs'], verbose=True)
     elif config_params['usevalidation']:
         modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model, verbose=True)
     return modelcheckpoint
@@ -75,22 +73,22 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         modelcheckpoint = model_checkpoint(config_params, path_to_model)
     optimizer = optimization.optimizer_fn(config_params, model)
     scheduler = optimization.select_lr_scheduler(config_params, optimizer)
-    
+    class_weights_train = loss_function.class_imbalance(config_params, df_train)
+
     if os.path.isfile(path_to_model):
         model, _, start_epoch = utils.load_model(model, optimizer, path_to_model)
         print("start epoch:",start_epoch)
         print("lr:",optimizer.param_groups[0]['lr'])
     else:
         start_epoch = 0
-    
-    if config_params['classimbalance']!='focalloss':
-        if config_params['femodel'] == 'gmic_resnet18':
-            bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, df_train, test_bool=False)
-        else:
-            if config_params['activation'] == 'softmax':
-                lossfn = loss_function.loss_fn_crossentropy(config_params, df_train, test_bool=False)
-            elif config_params['activation'] == 'sigmoid':
-                lossfn = loss_function.loss_fn_bce(config_params, df_train, test_bool=False)
+        
+    if config_params['femodel'] == 'gmic_resnet18':
+        bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, class_weights_train, test_bool=False)
+    else:
+        if config_params['activation'] == 'softmax':
+            lossfn = loss_function.loss_fn_crossentropy(config_params, class_weights_train, test_bool=False)
+        elif config_params['activation'] == 'sigmoid':
+            lossfn = loss_function.loss_fn_bce(config_params, class_weights_train, test_bool=False)
     
     for epoch in range(start_epoch,config_params['maxepochs']):
         model.train()
@@ -103,7 +101,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         if config_params['trainingmethod'] == 'multisteplr1':
             model = utils.layer_selection_for_training(model,epoch, config_params['trainingmethod'], epoch_step=5)
         
-        for train_idx, train_batch, train_labels in data_iterator_train:
+        for train_idx, train_batch, train_labels, views_names in data_iterator_train:
             train_batch = train_batch.to(config_params['device'])
             train_labels = train_labels.to(config_params['device'])
             train_labels = train_labels.view(-1)
@@ -113,16 +111,23 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             #    model, optimizer = utils.freeze_pipelines(model, optimizer, views_names, attention, feature_extractor)
             
             if config_params['femodel'] == 'gmic_resnet18':
-                output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch) # compute model output, loss and total train loss over one epoch
+                if config_params['learningtype'] == 'SIL':
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch) # compute model output, loss and total train loss over one epoch
+                elif config_params['learningtype'] == 'MIL':
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch, views_names)
                 output_batch_local = output_batch_local.view(-1)
                 output_batch_global = output_batch_global.view(-1)
                 output_batch_fusion = output_batch_fusion.view(-1)
                 train_labels = train_labels.float()
                 pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                loss = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, df_train, test_bool=False)
+                loss = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, class_weights_train, test_bool=False)
             
             else:
-                output_batch = model(train_batch)
+                if config_params['learningtype'] == 'SIL':
+                    output_batch = model(train_batch)
+                elif config_params['learningtype'] == 'MIL':
+                    output_batch = model(train_batch, views_names)
+                
                 if config_params['activation'] == 'sigmoid':
                     output_batch = output_batch.squeeze(1)
                     output_batch = output_batch.view(-1)                                                                          
@@ -148,7 +153,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
             print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()))
         
-        if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu':
+        if scheduler!=None:
             current_lr=scheduler.get_last_lr()[0]
         else:
             current_lr=optimizer.param_groups[0]['lr']
@@ -174,12 +179,12 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
             else:
                 utils.save_model(model, optimizer, epoch, running_train_loss, path_to_model)
-                per_model_metrics, conf_mat_test = test.run_test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
+                per_model_metrics, conf_mat_test = test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
                 evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train, total_images_train, loss_train, None, None, None, epoch, conf_mat_train, None, current_lr, None, path_to_results_xlsx, path_to_results_text)
                 evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
                 evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
 
-        if config_params['trainingmethod'] == 'multisteplr1' or config_params['trainingmethod'] == 'lrdecayshu': 
+        if scheduler!=None: 
             scheduler.step()
     
     if config_params['usevalidation']:
@@ -197,31 +202,39 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
     s=0
     batch_val_no=0
     conf_mat_val=np.zeros((2,2))
-    
-    if config_params['classimbalance']!='focalloss':
-        if config_params['femodel'] == 'gmic_resnet18':
-            bcelogitloss_val, bceloss_val = loss_function.loss_fn_gmic_initialize(config_params, df_val, test_bool=False)
-        else:
-            if config_params['activation'] == 'softmax':
-                lossfn1 = loss_function.loss_fn_crossentropy(config_params, df_val, test_bool=False)
-            elif config_params['activation'] == 'sigmoid':
-                lossfn1 = loss_function.loss_fn_bce(config_params, df_val, test_bool=False)
+
+    class_weights_val = loss_function.class_imbalance(config_params, df_val)
+
+    if config_params['femodel'] == 'gmic_resnet18':
+        bcelogitloss_val, bceloss_val = loss_function.loss_fn_gmic_initialize(config_params, class_weights_val, test_bool=False)
+    else:
+        if config_params['activation'] == 'softmax':
+            lossfn1 = loss_function.loss_fn_crossentropy(config_params, class_weights_val, test_bool=False)
+        elif config_params['activation'] == 'sigmoid':
+            lossfn1 = loss_function.loss_fn_bce(config_params, class_weights_val, test_bool=False)
     
     with torch.no_grad():   
-        for val_idx, val_batch, val_labels in data_iterator_val:
+        for val_idx, val_batch, val_labels, views_names in data_iterator_val:
             val_batch, val_labels = val_batch.to(config_params['device']), val_labels.to(config_params['device'])
             val_labels = val_labels.view(-1)#.float()
             if config_params['femodel'] == 'gmic_resnet18':
-                output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch) # compute model output, loss and total train loss over one epoch
+                if config_params['learningtype'] == 'SIL':
+                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch) # compute model output, loss and total train loss over one epoch
+                elif config_params['learningtype'] == 'MIL':
+                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch, views_names)
+                
                 output_batch_local_val = output_batch_local_val.view(-1)
                 output_batch_global_val = output_batch_global_val.view(-1)
                 output_batch_fusion_val = output_batch_fusion_val.view(-1)
                 val_labels = val_labels.float()
                 val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
-                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, df_val, test_bool=False).item()
+                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, class_weights_val, test_bool=False).item()
                 output_val = output_batch_fusion_val
             else:
-                output_val = model(val_batch)
+                if config_params['learningtype'] == 'SIL':
+                    output_val = model(val_batch)
+                if config_params['learningtype'] == 'MIL':
+                    output_val = model(val_batch, views_names)
                 if config_params['activation'] == 'sigmoid':
                     output_val = output_val.squeeze(1)
                     output_val = output_val.view(-1)                                                 
@@ -309,14 +322,12 @@ if __name__=='__main__':
         
         if config_params['usevalidation']:
             path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
-            df_train, df_val, df_test, batches_train, batches_val, batches_test = read_input_file.input_file_creation(config_params)
-            dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, g)
+            df_train, df_val, df_test, batches_train, batches_val, batches_test, view_group_indices_train = read_input_file.input_file_creation(config_params)
+            dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, view_group_indices_train, g)
         else:
             path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
-            df_train, df_test, batches_train, batches_test = read_input_file.input_file_creation(config_params)
-            dataloader_train, dataloader_test = data_loader.dataloader(config_params, df_train, None, df_test, g)
-        
-        
+            df_train, df_test, batches_train, batches_test, view_group_indices_train = read_input_file.input_file_creation(config_params)
+            dataloader_train, dataloader_test = data_loader.dataloader(config_params, df_train, None, df_test, view_group_indices_train, g)
         
         model, total_params = model_initialization(config_params)
 
@@ -329,7 +340,7 @@ if __name__=='__main__':
         #hyperparameter results
         if config_params['usevalidation']:
             per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val)
-            hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepoch'], config_params['batchsize']] + per_model_metrics_val
+            hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepochs'], config_params['batchsize']] + per_model_metrics_val
             evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
 
         #test the model

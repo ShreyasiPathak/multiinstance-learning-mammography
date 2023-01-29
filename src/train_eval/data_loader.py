@@ -53,7 +53,7 @@ def data_augmentation(config_params, df_train):
     
     return preprocess_train, preprocess_val
 
-def dataloader(config_params, df_train, df_val, df_test, g):
+def dataloader(config_params, df_train, df_val, df_test, view_group_indices_train, g):
     preprocess_train, preprocess_val = data_augmentation(config_params, df_train)
     
     batch_sampler = None
@@ -62,23 +62,23 @@ def dataloader(config_params, df_train, df_val, df_test, g):
     shuffle = True
     sampler1 = None
     if config_params['viewsinclusion'] == 'all':
-        if config_params['classimbalance'] == 'oversampling':
+        if config_params['classimbalance']=='oversampling':
             sampler = utils.CustomGroupbyViewWeightedRandomSampler(df_train)
-            sampler_val = utils.CustomGroupbyViewRandomSampler(df_val)
+            sampler_val = utils.CustomGroupbyViewRandomSampler(df_val, 'val')
         else:
-            sampler = utils.CustomGroupbyViewRandomSampler(df_train)
-            sampler_val = utils.CustomGroupbyViewRandomSampler(df_val)
+            sampler = utils.CustomGroupbyViewFullRandomSampler(view_group_indices_train, config_params['batchsize'], 'train')
+            sampler_val = utils.CustomGroupbyViewRandomSampler(df_val, 'val')
         
-        sampler_test = utils.CustomGroupbyViewRandomSampler(df_test)
+        sampler_test = utils.CustomGroupbyViewRandomSampler(df_test, 'test')
         
-        view_group_length, view_group_name = sampler.__viewlength__()
+        view_group_length = sampler.__viewlength__()
         view_group_length_val, view_group_name_val = sampler_val.__viewlength__()
         view_group_length_test, view_group_name_test = sampler_test.__viewlength__()
-        batch_sampler = utils.CustomGroupbyViewRandomBatchSampler(sampler, config_params['batchsize'], view_group_length, view_group_name)
+        batch_sampler = utils.CustomGroupbyViewFullRandomBatchSampler(sampler, config_params['batchsize'], view_group_length)
         batch_sampler_val = utils.CustomGroupbyViewRandomBatchSampler(sampler_val, config_params['batchsize'], view_group_length_val, view_group_name_val)
         batch_sampler_test = utils.CustomGroupbyViewRandomBatchSampler(sampler_test, config_params['batchsize'], view_group_length_test, view_group_name_test)
-        batch_size1 = 1
-        shuffle = False
+        batch_size1=1
+        shuffle=False
     
     elif config_params['viewsinclusion'] == 'standard': 
         if config_params['classimbalance'] == 'oversampling':
@@ -86,16 +86,28 @@ def dataloader(config_params, df_train, df_val, df_test, g):
             shuffle = False
         batch_size1 = config_params['batchsize']
     
-    dataset_gen_train = utils.BreastCancerDataset_generator(config_params, df_train, preprocess_train)
-    dataloader_train = DataLoader(dataset_gen_train, batch_size=batch_size1, shuffle=shuffle, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, sampler=sampler1, batch_sampler=batch_sampler)    
+    if config_params['learningtype'] == 'SIL':
+        dataset_gen_train = utils.BreastCancerDataset_generator(config_params, df_train, preprocess_train)
+        dataloader_train = DataLoader(dataset_gen_train, batch_size=batch_size1, shuffle=shuffle, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, sampler=sampler1, batch_sampler=batch_sampler)    
+        
+        if config_params['usevalidation']:
+            dataset_gen_val = utils.BreastCancerDataset_generator(config_params, df_val, preprocess_val)
+            dataloader_val = DataLoader(dataset_gen_val, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_val)
+        
+        dataset_gen_test = utils.BreastCancerDataset_generator(config_params, df_test, preprocess_val)
+        dataloader_test = DataLoader(dataset_gen_test, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_test)
     
-    if config_params['usevalidation']:
-        dataset_gen_val = utils.BreastCancerDataset_generator(config_params, df_val, preprocess_val)
-        dataloader_val = DataLoader(dataset_gen_val, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_val)
-    
-    dataset_gen_test = utils.BreastCancerDataset_generator(config_params, df_test, preprocess_val)
-    dataloader_test = DataLoader(dataset_gen_test, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_test)
-    
+    elif config_params['learningtype'] == 'MIL':
+        dataset_gen_train = utils.BreastCancerDataset_generator(config_params, df_train, preprocess_train)
+        dataloader_train = DataLoader(dataset_gen_train, batch_size=batch_size1, shuffle=shuffle, num_workers=config_params['numworkers'], collate_fn=utils.MyCollateBreastWise, worker_init_fn=seed_worker, generator=g, sampler=sampler1, batch_sampler=batch_sampler)    
+        
+        if config_params['usevalidation']:
+            dataset_gen_val = utils.BreastCancerDataset_generator(config_params, df_val, preprocess_val)
+            dataloader_val = DataLoader(dataset_gen_val, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollateBreastWise, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_val)
+        
+        dataset_gen_test = utils.BreastCancerDataset_generator(config_params, df_test, preprocess_val)
+        dataloader_test = DataLoader(dataset_gen_test, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollateBreastWise, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_test)
+
     if config_params['usevalidation']:
         return dataloader_train, dataloader_val, dataloader_test
     else:

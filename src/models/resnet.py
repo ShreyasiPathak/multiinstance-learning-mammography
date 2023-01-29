@@ -179,6 +179,7 @@ class ResNet(nn.Module):
         
         self.pooling_type = kwargs['regionpooling']
         self.topkpatch = kwargs['topkpatch']
+        self.learningtype = kwargs['learningtype']
         
         if kwargs['inchans'] == 1:
             self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
@@ -195,7 +196,8 @@ class ResNet(nn.Module):
         
         self.avgpool_2d = nn.AdaptiveAvgPool2d((1, 1))
         self.avgpool_1d = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        if self.learningtype == 'SIL':
+            self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         if self.pooling_type == '1x1conv':
             self.weightedpool = conv1x1(512, 1, 1)
@@ -310,7 +312,8 @@ class ResNet(nn.Module):
         x = self.layer4(x)
 
         x = self.region_pooling(x)
-        x = self.fc(x)
+        if self.learningtype == 'SIL':
+            x = self.fc(x)
         
         return x
 

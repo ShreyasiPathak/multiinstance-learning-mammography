@@ -15,6 +15,7 @@ import os
 import pickle
 import torch
 import math
+import copy
 #from skimage import io
 from PIL import Image
 from PIL import ImageOps
@@ -35,10 +36,11 @@ import imageio
 from data_loading import augmentations, loading
 
 
-groundtruth_dic={'benign':0,'malignant':1}
-inverted_groundtruth_dic={0:'benign',1:'malignant'}
-views_allowed=['LCC','LMLO','RCC','RMLO']
-views_allowed_gmic=['L-CC','L-MLO','R-CC','R-MLO']
+groundtruth_dic = {'benign':0,'malignant':1}
+inverted_groundtruth_dic = {0:'benign',1:'malignant'}
+views_allowed = ['LCC','LMLO','RCC','RMLO']
+views_allowed_gmic = ['L-CC','L-MLO','R-CC','R-MLO']
+cbis_view_dic = {'LEFT_CC': 'LCC', 'RIGHT_CC': 'RCC', 'LEFT_MLO': 'LMLO', 'RIGHT_MLO': 'RMLO'}
 #optimizer_params_dic={'.mlo':0,'.cc':1,'_left.attention':2,'_right.attention':3,'_both.attention':4}
 #cluster_data_path_prefix='/local/work/spathak'
 
@@ -139,18 +141,37 @@ class BreastCancerDataset_generator(Dataset):
         return self.df.shape[0]
     
     def __getitem__(self, idx):
-        data=self.df.iloc[idx]
-        img = collect_images(self.config_params, data)
-        if self.transform:
-            img=self.transform(img)
-        #print("after transformation:",img.shape)
-        if self.config_params['channel'] == 1:
-            img=img[0,:,:]
-            img=img.unsqueeze(0).unsqueeze(1)
-        elif self.config_params['channel'] == 3:
-            img=img.unsqueeze(0)
-        return idx, img, torch.tensor(groundtruth_dic[data['Groundtruth']])
-    
+        if self.config_params['learningtype'] == 'SIL':
+            data = self.df.iloc[idx]
+            img = collect_images(self.config_params, data)
+            if self.transform:
+                img=self.transform(img)
+            #print("after transformation:",img.shape)
+            if self.config_params['channel'] == 1:
+                img=img[0,:,:]
+                img=img.unsqueeze(0).unsqueeze(1)
+            elif self.config_params['channel'] == 3:
+                img=img.unsqueeze(0)
+            return idx, img, torch.tensor(groundtruth_dic[data['Groundtruth']]), data['Views']
+        
+        elif self.config_params['learningtype'] == 'MIL':
+            flag = 0
+            data = self.df.loc[idx] #loc is valid because I have reset_index in df_train, df_val and df_test. random data sampling returns index, but as our index is same as the relative position, bpth iloc and loc should work. I am using loc because of groupby view data sampler. 
+            image_list, _, views_saved = collect_cases(self.config_params, data)
+            for j,img in enumerate(image_list):
+                if self.transform:
+                    img=self.transform(img)
+                if self.config_params['channel'] == 1:
+                    img = img[0,:,:]
+                    img = img.unsqueeze(0)
+                img = img.unsqueeze(0)
+                if flag==0:
+                    image_tensor = img
+                    flag = 1
+                else:
+                    image_tensor = torch.cat((image_tensor,img),0)
+            return idx, image_tensor, torch.tensor(groundtruth_dic[data['Groundtruth']]), views_saved 
+
 class CustomWeightedRandomSampler(Sampler):
     def __init__(self, df_train):
         self.df = df_train
@@ -186,9 +207,11 @@ class CustomWeightedRandomSampler(Sampler):
         return len_instances_oversample
 
 class CustomGroupbyViewRandomSampler(Sampler):
-    def __init__(self, df_train):
+    def __init__(self, df_train, subset):
         self.df = df_train
-        self.view_group = list(self.df.groupby(by=['Views']))
+        self.groups = self.df.groupby(by=['Views'])
+        self.view_group = list(self.groups)
+        self.subset = subset
     
     def __iter__(self):
         j=0
@@ -196,7 +219,8 @@ class CustomGroupbyViewRandomSampler(Sampler):
             #print("Sampler:",name)
             indices=item.index.values
             #print("indices:",indices)
-            random.shuffle(indices)
+            if self.subset == 'train':
+                random.shuffle(indices)
             #print("shuffled indices:",indices)
             if j==0:
                 shuffled_indices = indices
@@ -204,6 +228,7 @@ class CustomGroupbyViewRandomSampler(Sampler):
                 shuffled_indices = np.append(shuffled_indices,indices)
             j+=1
         #print("whole indices:",shuffled_indices)
+        #input('halt')
         iter_shuffledIndices=iter(shuffled_indices)
         return iter_shuffledIndices
     
@@ -217,6 +242,117 @@ class CustomGroupbyViewRandomSampler(Sampler):
         #print("__view_length__:",view_group_length)
         #print("__view_length__:",view_group_name)
         return view_group_length, view_group_name
+
+class CustomGroupbyViewRandomBatchSampler(Sampler):
+    def __init__(self, sampler, batch_size, view_group_length_dic, view_group_name):
+        if not isinstance(sampler, Sampler):
+            raise ValueError("sampler should be an instance of "
+                             "torch.utils.data.Sampler, but got sampler={}"
+                             .format(sampler))
+        self.sampler = sampler
+        self.batch_size = batch_size
+        self.view_group_length_dic = view_group_length_dic
+        self.view_group_name = view_group_name
+    
+    def __iter__(self):
+        batch = []
+        len_tillCurrent=0
+        file_current=0
+        batch_no=0
+        for idx in self.sampler:
+            batch.append(idx)
+            len_tillCurrent=len_tillCurrent+1
+            if len(batch) == self.batch_size or len_tillCurrent==self.view_group_length_dic[self.view_group_name[file_current]]:
+                #print("batch_sampler:",batch)
+                batch_no=batch_no+1
+                yield batch
+                batch = []
+            if len_tillCurrent==self.view_group_length_dic[self.view_group_name[file_current]]:
+                len_tillCurrent = 0
+                file_current=file_current+1
+    
+    def __len__(self):
+        length=np.sum(np.ceil(np.array(list(self.view_group_length_dic.values()))/self.batch_size),dtype='int32')
+        print("length in batch sampler:",length)
+        return length
+
+class CustomGroupbyViewFullRandomSampler(Sampler):
+    def __init__(self, view_group_dic, batch_size, subset):
+        self.view_group_dic = view_group_dic
+        self.view_group_names = list(self.view_group_dic.keys())
+        self.subset = subset
+        self.batch_size = batch_size
+    
+    def __iter__(self):
+        total_indices=[]
+        view_group_name_dup = copy.deepcopy(self.view_group_names)
+        view_group_dic_dup = copy.deepcopy(self.view_group_dic)
+        #print(view_group_dic_dup)
+        while view_group_name_dup:    
+            key=random.sample(view_group_name_dup,1)[0]
+            #print(key)
+            if len(view_group_dic_dup[key])>self.batch_size:
+                selected_index=random.sample(view_group_dic_dup[key],self.batch_size)
+                insert_val=zip(selected_index,[key]*self.batch_size)
+                total_indices.extend(insert_val)
+                view_group_dic_dup[key] = [num for num in view_group_dic_dup[key] if num not in selected_index]
+                #print(selected_index)
+                #print(view_group_dic_dup[key])    
+            else:
+                total_indices.extend(zip(view_group_dic_dup[key],[key]*len(view_group_dic_dup[key])))
+                view_group_dic_dup.pop(key,None)
+                view_group_name_dup.pop(view_group_name_dup.index(key))
+                view_group_name_dup=list(view_group_dic_dup.keys())
+            #print(total_indices)
+            #input('halt')
+        #print(total_indices)
+        
+        #print(total_indices)
+        #print("whole indices:",np.array(total_indices)[:,0])
+        #input('halt')
+        iter_shuffledIndices=iter(total_indices)
+        return iter_shuffledIndices
+    
+    def __viewlength__(self):
+        view_group_length={}
+        for name, item in self.view_group_dic.items():
+           view_group_length[name]=len(item)
+        return view_group_length
+
+class CustomGroupbyViewFullRandomBatchSampler(Sampler):
+    def __init__(self, sampler, batch_size, view_group_length_dic):
+        if not isinstance(sampler, Sampler):
+            raise ValueError("sampler should be an instance of "
+                             "torch.utils.data.Sampler, but got sampler={}"
+                             .format(sampler))
+        self.sampler = sampler
+        self.batch_size = batch_size
+        self.view_group_length_dic = view_group_length_dic
+    
+    def __iter__(self):
+        batch = []
+        batch_no=0
+        ct=0
+        for idx,view_name in self.sampler:
+            if ct==0:
+                view_name_previous=view_name
+            if len(batch) == self.batch_size or view_name!=view_name_previous: 
+                #print("batch_sampler:",batch)
+                batch_no+=1
+                yield batch
+                batch = []
+            batch.append(idx)
+            view_name_previous=view_name
+            ct+=1
+            if ct==sum(list(self.view_group_length_dic.values())):
+                batch_no+=1
+                yield batch
+                batch = []
+    
+    def __len__(self):
+        length=np.sum(np.ceil(np.array(list(self.view_group_length_dic.values()))/self.batch_size),dtype='int32')
+        print("length in batch sampler:",length)
+        return length
 
 class CustomGroupbyViewWeightedRandomSampler(Sampler):
     def __init__(self, df_train):
@@ -289,80 +425,77 @@ class CustomGroupbyViewWeightedRandomSampler(Sampler):
             view_group_name.append(name)
         return view_group_length, view_group_name
 
-class CustomGroupbyViewRandomBatchSampler(Sampler):
-    def __init__(self, sampler, batch_size, view_group_length_dic, view_group_name):
-        if not isinstance(sampler, Sampler):
-            raise ValueError("sampler should be an instance of "
-                             "torch.utils.data.Sampler, but got sampler={}"
-                             .format(sampler))
-        self.sampler = sampler
-        self.batch_size = batch_size
-        self.view_group_length_dic = view_group_length_dic
-        self.view_group_name = view_group_name
-    
-    def __iter__(self):
-        batch = []
-        len_tillCurrent=0
-        file_current=0
-        batch_no=0
-        for idx in self.sampler:
-            batch.append(idx)
-            len_tillCurrent=len_tillCurrent+1
-            if len(batch) == self.batch_size or len_tillCurrent==self.view_group_length_dic[self.view_group_name[file_current]]:
-                #print("batch_sampler:",batch)
-                batch_no=batch_no+1
-                yield batch
-                batch = []
-            if len_tillCurrent==self.view_group_length_dic[self.view_group_name[file_current]]:
-                len_tillCurrent = 0
-                file_current=file_current+1
-    
-    def __len__(self):
-        length=np.sum(np.ceil(np.array(list(self.view_group_length_dic.values()))/self.batch_size),dtype='int32')
-        print("length in batch sampler:",length)
-        return length
-
 def MyCollate(batch):
     i=0
     index=[]
     target=[]
     for item in batch:
         if i==0:
-            data=batch[i][1]
-            #print(data.shape)
+            data = batch[i][1]
+            views_names = [item[3]]
         else:
             data=torch.cat((data,batch[i][1]),dim=0)
-            #print(data.shape)
+            views_names.append(item[3])
         index.append(item[0])
         target.append(item[2])
         i+=1
     index = torch.LongTensor(index)
     target = torch.LongTensor(target)
-    return [index, data, target]
+    return [index, data, target, views_names]
 
 def MyCollateBreastWise(batch):
     i=0
     index=[]
     target=[]
-    bag_size=[]
     views_names_list=[]
-    data=torch.zeros(len(batch),4,1600,1600)
+    if batch[0][1].shape[1] == 3:
+        data=torch.zeros(len(batch), len(batch[0][3]), batch[0][1].shape[1], batch[0][1].shape[2], batch[0][1].shape[3])
+    elif batch[0][1].shape[1] == 1:
+        data=torch.zeros(len(batch), len(batch[0][3]), batch[0][1].shape[2], batch[0][1].shape[3])
     for item in batch:
-        views_names = item[4]
-        view_indices = np.where(np.isin(views_allowed,views_names))
-        view_indices = torch.from_numpy(view_indices[0])
-        data[i,view_indices,:,:] = batch[i][2].squeeze(1)
+        views_names = item[3]
+        if batch[i][1].shape[1]==3:
+            data[i,:,:,:,:] = batch[i][1]
+        elif batch[i][1].shape[1]==1:
+            data[i,:,:,:] = batch[i][1].squeeze(1)
         index.append(item[0])
-        target.append(item[3])
-        bag_size.append(item[1])
+        target.append(item[2])
+        views_names_list.append(item[3])
         i+=1
-        views_names_list.append(item[4])
     index = torch.LongTensor(index)
     target = torch.LongTensor(target)
-    #print(views_names_list)
-    return [index, bag_size, data, target, views_names]
+    return [index, data, target, list(np.unique(views_names_list))]
 
 ##--------------------------------------------------------------- collect image ----------------------------------------------------#
+def view_extraction(series_list):
+    #cbis specific
+    series_list = list(map(lambda x: [x.split('_')[0].upper(), x], series_list))
+    series_list = sorted(series_list, key=lambda x: x[0])
+    return series_list
+
+def collect_cases(config_params, data):
+    breast_side=[]
+    image_read_list=[]
+    views_saved=[]
+    data1 = {}
+    studyuid_path = str(data['FullPath'])
+    series_list = os.listdir(studyuid_path)
+    series_list = view_extraction(series_list)
+    #series_list.sort()
+    for series in series_list:
+        series_path = studyuid_path+'/'+series[1]
+        img_list=os.listdir(series_path)
+        for image in img_list:
+            img_path = series_path+'/'+image
+            data1['FullPath'] = img_path
+            data1['Views'] = series[0]
+            img = collect_images(config_params, data1)
+            if series[0] in views_allowed and series[0] not in views_saved:
+                views_saved.append(series[0])
+                image_read_list.append(img)
+                breast_side.append(series[0][0])
+    return image_read_list, breast_side, views_saved
+
 def collect_images(config_params, data):
     if config_params['bitdepth'] ==  8:
         img = collect_images_8bits(config_params, data)
@@ -611,25 +744,6 @@ def fetch_groundtruth(df,acc_num,modality):
         groundtruth=groundtruth.item()
     return groundtruth
 
-def update_lr(optimizer, lr):
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-    return optimizer
-
-def removing_weight_decay_momentum(optimizer,layer_keyword,optimizer_params_dic):
-    index=optimizer_params_dic[layer_keyword]
-    optimizer.param_groups[index]['momentum']=0
-    optimizer.param_groups[index]['weight_decay']=0
-    return optimizer
-
-def freeze_layers(model, layer_keyword):
-    for name,param in model.named_parameters():
-        #print(name)
-        if layer_keyword in name:
-            param.requires_grad=False
-            #print(name,param.requires_grad)
-    return model
-
 def gradual_unfreezing(model,epoch):
     for name,param in model.named_parameters():
         if 'feature_extractor.fc' in name:# or 'fc2' in name or 'fc3' in name:
@@ -678,13 +792,150 @@ def layer_selection_for_training(model, epoch, trainingmethod,epoch_step):
             print("all layers unfrozen")
     return model
 
-def freeze_pipelines(model,optimizer,views_names, attention, feature_extractor):
-    if attention=='breastwise' and feature_extractor=='viewwise':
-        optimizer_params_dic={'.mlo':0,'.cc':1,'_both_b.attention':2,'_both_m.attention':2}
-    elif attention=='breastwise' and feature_extractor=='common':
-        optimizer_params_dic={'_both_b.attention':0,'_both_m.attention':0}
-    elif feature_extractor=='viewwise':
-        optimizer_params_dic={'.mlo':0,'.cc':1}
+def update_lr(optimizer, lr):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    return optimizer
+
+def removing_weight_decay_momentum(optimizer,layer_keyword,optimizer_params_dic):
+    index=optimizer_params_dic[layer_keyword]
+    optimizer.param_groups[index]['momentum']=0
+    optimizer.param_groups[index]['weight_decay']=0
+    return optimizer
+
+def freeze_layers(model, layer_keyword):
+    for name,param in model.named_parameters():
+        #print(name)
+        if layer_keyword in name:
+            param.requires_grad=False
+            #print(name,param.requires_grad)
+    return model
+
+def freeze_weight_update_adam(optimizer, layer_keyword, optimizer_params_dic):
+    index=optimizer_params_dic[layer_keyword]
+    for p in optimizer.param_groups[index]['params']:
+        state = optimizer.state[p]
+        m = state['exp_avg']
+        v = state['exp_avg_sq']
+        
+    return optimizer
+
+def dynamic_training(config_params, views_names, optimizer):
+    if config_params['attention'] == 'breastwise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
+        optimizer_params_dic = {'both.attention':0, 'perbreast.attention':1}
+    elif config_params['attention'] == 'imagewise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
+        optimizer_params_dic = {'img.attention':0}
+    
+    #print(views_names)
+    view_split = np.array([view[1:] for view in views_names])
+    view_split = np.unique(view_split).tolist()
+    breast_split = np.array([view[0] for view in views_names])
+    breast_split = breast_split.tolist()
+    #print(view_split,breast_split)
+
+    #attention weighing switch off
+    if config_params['attention'] =='breastwise':
+        if breast_split.count('L')<2 and breast_split.count('R')<2:
+            #print("I am switching off _left.attention")
+            model=freeze_layers(model,'perbreast.attention')
+            optimizer=removing_weight_decay_momentum(optimizer, 'perbreast.attention', optimizer_params_dic)
+        if (breast_split.count('L')==0) or (breast_split.count('R')==0):
+            #print("I am switching off both.attention")
+            model=freeze_layers(model,'both.attention')
+            optimizer=removing_weight_decay_momentum(optimizer, 'both.attention', optimizer_params_dic)
+    
+    elif config_params['attention']=='imagewise':
+        if len(views_names)==1:
+            model = freeze_layers(model,'model_attention.attention')
+            optimizer=removing_weight_decay_momentum(optimizer, 'model_attention.attention', optimizer_params_dic)
+
+    freeze_weight_update_adam(optimizer, 'perbreast.attention', optimizer_params_dic)
+
+def freeze_pipelines(model,optimizer,views_names, attention, feature_extractor, activation, epoch, trainingmethod, epoch_step):
+    if activation=='softmax':
+        if attention=='breastwise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'both.attention':2,'perbreast.attention':3}
+        elif attention=='breastwise' and feature_extractor=='common':
+            optimizer_params_dic={'both.attention':0,'perbreast.attention':1}
+        elif attention=='imagewise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'model_attention.attention':2}
+        elif attention=='imagewise' and feature_extractor=='common':
+            optimizer_params_dic={'model_attention.attention':0}
+        elif feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1}
+    
+    #print(views_names)
+    view_split=np.array([view[1:] for view in views_names])
+    view_split=np.unique(view_split).tolist()
+    breast_split=np.array([view[0] for view in views_names])
+    breast_split=breast_split.tolist()
+    #print(view_split,breast_split)
+    
+    #model switching on all weights
+    model = layer_selection_for_training(model, epoch, trainingmethod, epoch_step)
+    #for name,param in model.named_parameters():
+    #    param.requires_grad=True
+    
+    for param_groups in optimizer.param_groups:
+        param_groups['momentum']=0.9 
+        param_groups['weight_decay']=0.0005
+    
+    if feature_extractor=='viewwise':
+        #model switch off
+        if view_split==['CC']:
+            #print("I am switching off .mlo")
+            model=freeze_layers(model, '.mlo')
+            optimizer=removing_weight_decay_momentum(optimizer, '.mlo', optimizer_params_dic)
+        elif view_split==['MLO']:
+            #print("I am switching off .cc")
+            model=freeze_layers(model,'.cc')
+            optimizer=removing_weight_decay_momentum(optimizer, '.cc', optimizer_params_dic)
+    
+    #attention weighing switch off
+    if attention=='breastwise':
+        if activation=='softmax':
+            if breast_split.count('L')<2 and breast_split.count('R')<2:
+                #print("I am switching off _left.attention")
+                model=freeze_layers(model,'perbreast.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'perbreast.attention', optimizer_params_dic)
+            if (breast_split.count('L')==0) or (breast_split.count('R')==0):
+                #print("I am switching off both.attention")
+                model=freeze_layers(model,'both.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'both.attention', optimizer_params_dic)
+    
+    elif attention=='imagewise':
+        if activation=='softmax':
+            if len(views_names)==1:
+                model=freeze_layers(model,'model_attention.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'model_attention.attention', optimizer_params_dic)
+    
+    return model, optimizer
+
+def freeze_pipelines_kim(model,optimizer,views_names, attention, feature_extractor, activation):
+    if activation=='softmax':
+        if attention=='breastwise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'both_b.attention':2,'both_m.attention':2,'perbreast_b.attention':3,'perbreast_m.attention':3}
+        elif attention=='breastwise' and feature_extractor=='common':
+            optimizer_params_dic={'both_b.attention':0,'both_m.attention':0,'perbreast_b.attention':1,'perbreast_m.attention':1}
+        elif attention=='imagewise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'model_attention_b.attention':2,'model_attention_m.attention':2}
+        elif attention=='imagewise' and feature_extractor=='common':
+            optimizer_params_dic={'model_attention_b.attention':0,'model_attention_m.attention':0}
+        elif feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1}
+    
+    elif activation=='sigmoid':
+        if attention=='breastwise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'both.attention':2,'perbreast.attention':3}
+        elif attention=='breastwise' and feature_extractor=='common':
+            optimizer_params_dic={'both.attention':0,'perbreast.attention':1}
+        elif attention=='imagewise' and feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1,'model_attention.attention':2}
+        elif attention=='imagewise' and feature_extractor=='common':
+            optimizer_params_dic={'model_attention.attention':0}
+        elif feature_extractor=='viewwise':
+            optimizer_params_dic={'.mlo':0,'.cc':1}
+    
     #print(views_names)
     view_split=np.array([view[1:] for view in views_names])
     view_split=np.unique(view_split).tolist()
@@ -713,20 +964,41 @@ def freeze_pipelines(model,optimizer,views_names, attention, feature_extractor):
     
     #attention weighing switch off
     if attention=='breastwise':
-        '''if breast_split.count('L')<2:
-            #print("I am switching off _left.attention")
-            model=freeze_layers(model,'_left.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, '_left.attention', optimizer_params_dic)
-        if breast_split.count('R')<2:
-            #print("I am switching off _right.attention")
-            model=freeze_layers(model,'_right.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, '_right.attention', optimizer_params_dic)'''
-        if (breast_split.count('L')==0) or (breast_split.count('R')==0):
-            #print("I am switching off _both.attention")
-            model=freeze_layers(model,'_both_b.attention')
-            model=freeze_layers(model,'_both_m.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, '_both_b.attention', optimizer_params_dic)
-            optimizer=removing_weight_decay_momentum(optimizer, '_both_m.attention', optimizer_params_dic)
+        if activation=='softmax':
+            if breast_split.count('L')<2 and breast_split.count('R')<2:
+                #print("I am switching off _left.attention")
+                model=freeze_layers(model,'perbreast_b.attention')
+                model=freeze_layers(model,'perbreast_m.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'perbreast_b.attention', optimizer_params_dic)
+                optimizer=removing_weight_decay_momentum(optimizer, 'perbreast_m.attention', optimizer_params_dic)
+            if (breast_split.count('L')==0) or (breast_split.count('R')==0):
+                #print("I am switching off both.attention")
+                model=freeze_layers(model,'both_b.attention')
+                model=freeze_layers(model,'both_m.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'both_b.attention', optimizer_params_dic)
+                optimizer=removing_weight_decay_momentum(optimizer, 'both_m.attention', optimizer_params_dic)
+        
+        elif activation=='sigmoid':
+            if breast_split.count('L')<2 and breast_split.count('R')<2:
+                #print("I am switching off _left.attention")
+                model=freeze_layers(model,'perbreast.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'perbreast.attention', optimizer_params_dic)
+            if (breast_split.count('L')==0) or (breast_split.count('R')==0):
+                #print("I am switching off both.attention")
+                model=freeze_layers(model,'both.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'both.attention', optimizer_params_dic)
+    
+    elif attention=='imagewise':
+        if activation=='softmax':
+            if len(views_names)==1:
+                model=freeze_layers(model,'model_attention_b.attention')
+                model=freeze_layers(model,'model_attention_m.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'model_attention_b.attention', optimizer_params_dic)
+                optimizer=removing_weight_decay_momentum(optimizer, 'model_attention_m.attention', optimizer_params_dic)
+        elif activation=='sigmoid':
+            if len(views_names)==1:
+                model=freeze_layers(model,'model_attention.attention')
+                optimizer=removing_weight_decay_momentum(optimizer, 'model_attention.attention', optimizer_params_dic)
     
     return model, optimizer
 
@@ -793,10 +1065,20 @@ def class_distribution_poswt(df):
     print(pos_wt)
     return pos_wt
 
-
-def groupby_view(df):
+def groupby_view_train(df):
     df['Views'] = df['Views'].str.upper().str.replace(" ","")
-    view_group=df.groupby(by=['Views'])
+    view_group = df.groupby(by=['Views'])
+    view_group = list(view_group)
+    view_group_indices={}
+    view_group_names_dic={}
+    for name, item in view_group:
+        view_group_indices[name]=list(item.index.values)
+        view_group_names_dic[name]=item.shape[0]
+    return view_group_indices, view_group_names_dic
+
+def groupby_view_test(df):
+    df['Views'] = df['Views'].str.upper().str.replace(" ","")
+    view_group = df.groupby(by=['Views'])
     view_group = list(view_group)
     #random.shuffle(view_group)
     j=0
@@ -964,6 +1246,91 @@ def load_model(model, optimizer, path):
     optimizer.load_state_dict(checkpoint['optim_dict'])
     epoch = checkpoint['epoch']
     return model, optimizer, epoch
+
+def results_subgroups(df,true_labels,pred_labels,y_prob, sheet):
+    breastden_A=df[df['BreastDensity']==1].index
+    breastden_B=df[df['BreastDensity']==2].index
+    breastden_C=df[df['BreastDensity']==3].index
+    breastden_D=df[df['BreastDensity']==4].index
+    
+    breastden_A_metrics = performance_metrics(None,true_labels[breastden_A],pred_labels[breastden_A],y_prob[breastden_A])
+    breastden_B_metrics = performance_metrics(None,true_labels[breastden_B],pred_labels[breastden_B],y_prob[breastden_B])
+    breastden_C_metrics = performance_metrics(None,true_labels[breastden_C],pred_labels[breastden_C],y_prob[breastden_C])
+    breastden_D_metrics = performance_metrics(None,true_labels[breastden_D],pred_labels[breastden_D],y_prob[breastden_D])
+    
+    sheet.append(['breast density A'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_A_metrics)
+    sheet.append(['breast density B'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_B_metrics)
+    sheet.append(['breast density C'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_C_metrics)
+    sheet.append(['breast density D'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_D_metrics)
+    
+    birads_0=df[df['AssessmentMax']==0].index
+    birads_1=df[df['AssessmentMax']==1].index
+    birads_2=df[df['AssessmentMax']==2].index
+    birads_3=df[df['AssessmentMax']==3].index
+    birads_4=df[df['AssessmentMax']==4].index
+    birads_5=df[df['AssessmentMax']==5].index
+    birads_6=df[df['AssessmentMax']==6].index
+    
+    birads_0_metrics = performance_metrics(None,true_labels[birads_0],pred_labels[birads_0],y_prob[birads_0])
+    if not birads_1.empty:
+        try:
+            print('I am in try!')
+            birads_1_metrics = performance_metrics(None,true_labels[birads_1],pred_labels[birads_1],y_prob[birads_1])
+        except:
+            print('I am in except')
+            pass
+    birads_2_metrics = performance_metrics(None,true_labels[birads_2],pred_labels[birads_2],y_prob[birads_2])
+    birads_3_metrics = performance_metrics(None,true_labels[birads_3],pred_labels[birads_3],y_prob[birads_3])
+    birads_4_metrics = performance_metrics(None,true_labels[birads_4],pred_labels[birads_4],y_prob[birads_4])
+    birads_5_metrics = performance_metrics(None,true_labels[birads_5],pred_labels[birads_5],y_prob[birads_5])
+    if not birads_6.empty:
+        try:
+            print('I am in try!')
+            birads_6_metrics = performance_metrics(None,true_labels[birads_6],pred_labels[birads_6],y_prob[birads_6])
+        except:
+            print('I am in except')
+            pass
+    
+    sheet.append(['birads 0'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_0_metrics)
+    if not birads_1.empty:
+        try:
+            sheet.append(['birads 1'])
+            sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+            sheet.append(birads_1_metrics)
+        except:
+            pass
+    
+    sheet.append(['birads 2'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_2_metrics)
+    sheet.append(['birads 3'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_3_metrics)
+    sheet.append(['birads 4'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_4_metrics)
+    sheet.append(['birads 5'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_5_metrics)
+    if not birads_6.empty:
+        try:
+            sheet.append(['birads 6'])
+            sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+            sheet.append(birads_6_metrics)
+        except:
+            pass
+    
+    return sheet
 
 def confusion_matrix_norm_func(conf_mat,fig_name,class_name):
     #class_name=['W','N1','N2','N3','REM']

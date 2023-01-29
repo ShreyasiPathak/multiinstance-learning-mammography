@@ -29,30 +29,37 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
     conf_mat_test=np.zeros((2,2))
     
     if config_params['femodel'] == 'gmic_resnet18':
-        bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, df_test, test_bool=True)
+        bcelogitloss, bceloss = loss_function.loss_fn_gmic_initialize(config_params, None, test_bool=True)
     else:
         if config_params['activation'] == 'softmax':
-            lossfn1 = loss_function.loss_fn_crossentropy(config_params, df_test, test_bool=True)
+            lossfn1 = loss_function.loss_fn_crossentropy(config_params, None, test_bool=True)
         elif config_params['activation'] == 'sigmoid':
-            lossfn1 = loss_function.loss_fn_bce(config_params, df_test, test_bool=True)
+            lossfn1 = loss_function.loss_fn_bce(config_params, None, test_bool=True)
     
     with torch.no_grad():
-        for test_idx, test_batch, test_labels in dataloader_test:
+        for test_idx, test_batch, test_labels, views_names in dataloader_test:
             test_batch, test_labels = test_batch.to(config_params['device']), test_labels.to(config_params['device'])
             test_labels = test_labels.view(-1)
             
-            if config_params['femodel'] == 'gmic_resnet18_pretrained':
-                output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch) # compute model output, loss and total train loss over one epoch
+            if config_params['femodel'] == 'gmic_resnet18':
+                if config_params['learningtype'] == 'SIL':
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch) # compute model output, loss and total train loss over one epoch
+                elif config_params['learningtype'] == 'MIL':
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch, views_names)
                 output_batch_local = output_batch_local.view(-1)
                 output_batch_global = output_batch_global.view(-1)
                 output_batch_fusion = output_batch_fusion.view(-1)
                 test_labels = test_labels.float()
                 test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                loss1 = loss_function.gmic_loss_fn(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, df_test, test_bool=False).item()
+                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, None, test_bool=True).item()
                 output_test = output_batch_fusion
             
             else:
-                output_test = model(test_batch)
+                if config_params['learningtype'] == 'SIL':
+                    output_test = model(test_batch)
+                elif config_params['learningtype'] == 'MIL':
+                    output_test = model(test_batch, views_names)
+                
                 if config_params['activation']=='sigmoid':
                     output_test = output_test.squeeze(1)
                     output_test = output_test.view(-1)                                                 

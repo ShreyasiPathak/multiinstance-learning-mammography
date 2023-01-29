@@ -332,7 +332,7 @@ class TopTPercentAggregationFunction(AbstractMILUnit):
         cam_flatten = cam.view(batch_size, num_class, -1)
         top_t = int(round(W*H*self.percent_t))
         selected_area = cam_flatten.topk(top_t, dim=2)[0]
-        return selected_area.mean(dim=2)
+        return selected_area, selected_area.mean(dim=2)
 
 
 class RetrieveROIModule(AbstractMILUnit):
@@ -430,7 +430,8 @@ class AttentionModule(AbstractMILUnit):
         self.parent_module.mil_attn_U = nn.Linear(512, 128, bias=False)
         self.parent_module.mil_attn_w = nn.Linear(128, 1, bias=False)
         # classifier
-        self.parent_module.classifier_linear = nn.Linear(512, self.parameters["num_classes"], bias=False)
+        if self.parameters['learningtype'] == 'SIL':
+            self.parent_module.classifier_linear = nn.Linear(512, self.parameters["num_classes"], bias=False)
 
     def forward(self, h_crops):
         """
@@ -454,8 +455,11 @@ class AttentionModule(AbstractMILUnit):
 
         # map to the final layer
         #y_crops = torch.sigmoid(self.parent_module.classifier_linear(z_weighted_avg))
-        y_crops = self.parent_module.classifier_linear(z_weighted_avg)
-        return z_weighted_avg, attn, y_crops
+        if self.parameters['learningtype'] == 'SIL':
+            y_crops = self.parent_module.classifier_linear(z_weighted_avg)
+            return z_weighted_avg, attn, y_crops
+        elif self.parameters['learningtype'] == 'MIL':
+            return z_weighted_avg, attn
 
 
 

@@ -130,7 +130,7 @@ class MyResNet(nn.Module):
         self.inplanes = 48
         self.dilation = 1
         self.activation = kwargs['activation']
-        self.extra = kwargs['extra']
+        self.learningtype = kwargs['learningtype']
         
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -154,16 +154,15 @@ class MyResNet(nn.Module):
         self.conv2 = nn.Conv2d(self.inplanes, self.inplanes, kernel_size=5, stride=2, padding=2,bias=False)
         self.bn2 = self._norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        if self.extra == 'fclayerreduction':
-            self.leakyrelu =  nn.LeakyReLU(0.1)
         
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 96, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 128, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 192, layers[3], stride=2)
         
-        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        #self.fc = nn.Linear(192 * block.expansion, num_classes)
+        if self.learningtype == 'SIL':
+            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+            #self.fc = nn.Linear(192 * block.expansion, num_classes)
         
         if self.activation == 'softmax':
             self.conv3 = nn.Conv2d(192, 2, kernel_size=1, stride=1, padding=0,bias=False)
@@ -229,9 +228,10 @@ class MyResNet(nn.Module):
         x = self.conv3(x)
         x = self.relu(x)
 
-        '''x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)'''
+        if self.learningtype == 'SIL':
+            x = self.avgpool(x)
+            x = torch.flatten(x, 1)
+            #x = self.fc(x)
         
         return x
 

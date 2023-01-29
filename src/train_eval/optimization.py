@@ -21,27 +21,29 @@ def select_lr_scheduler(config_params, optimizer):
         scheduler = lrdecay_scheduler_shu(optimizer)
     elif config_params['trainingmethod'] == 'lrdecaykim':
         scheduler = lrdecay_scheduler_kim(optimizer)
+    else:
+        scheduler = None
     return scheduler
 
 def optimizer_fn(config_params, model):
     if config_params['viewsinclusion']=='all':
-        mlo_group=[]
-        cc_group=[]
         both_attention_group=[]
+        image_attention_group=[]
+        perbreast_attention_group=[]
         rest_group=[]
         param_list=[]
         
         for name,param in model.named_parameters():
             if param.requires_grad:
-                if '.mlo' in name:
-                    mlo_group.append(param)
-                elif '.cc' in name:
-                    cc_group.append(param) 
-                elif '_both_b.attention' in name or '_both_m.attention' in name:
+                if 'both.attention' in name:
                     both_attention_group.append(param)
+                elif 'perbreast.attention' in name:
+                    perbreast_attention_group.append(param)
+                elif 'img.attention' in name:
+                    image_attention_group.append(param)
                 else:
                     rest_group.append(param)
-        for item in [mlo_group,cc_group,both_attention_group,rest_group]:
+        for item in [both_attention_group, image_attention_group, perbreast_attention_group, rest_group]:
             if item:
                 param_list.append({"params":item, "lr":config_params['lr'], "momentum":0.9, "weight_decay": config_params['wtdecay']})
         if config_params['optimizer']=='Adam':

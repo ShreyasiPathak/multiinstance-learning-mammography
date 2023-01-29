@@ -71,7 +71,8 @@ class GMIC(nn.Module):
         self.attention_module.add_layers()
 
         # fusion branch
-        self.fusion_dnn = nn.Linear(parameters["post_processing_dim"]+512, parameters["num_classes"])
+        if self.experiment_parameters['learningtype'] == 'SIL':
+            self.fusion_dnn = nn.Linear(parameters["post_processing_dim"]+512, parameters["num_classes"])
 
     def _convert_crop_position(self, crops_x_small, cam_size, x_original):
         """
@@ -132,7 +133,7 @@ class GMIC(nn.Module):
 
         # calculate y_global
         # note that y_global is not directly used in inference
-        self.y_global = self.aggregation_function.forward(self.saliency_map)
+        topt_feature, self.y_global = self.aggregation_function.forward(self.saliency_map)
 
         # gmic region proposal network
         small_x_locations = self.retrieve_roi_crops.forward(x_original, self.cam_size, self.saliency_map)
@@ -151,7 +152,10 @@ class GMIC(nn.Module):
 
         # MIL module
         # y_local is not directly used during inference
-        z, self.patch_attns, self.y_local = self.attention_module.forward(h_crops)
+        if self.experiment_parameters['learningtype'] == 'SIL':
+            z, self.patch_attns, self.y_local = self.attention_module.forward(h_crops)
+        elif self.experiment_parameters['learningtype'] == 'MIL':
+            z, self.patch_attns = self.attention_module.forward(h_crops)
 
         # fusion branch
         # use max pooling to collapse the feature map
@@ -159,9 +163,14 @@ class GMIC(nn.Module):
         global_vec, _ = torch.max(g1, dim=2)
         concat_vec = torch.cat([global_vec, z], dim=1)
         #self.y_fusion = torch.sigmoid(self.fusion_dnn(concat_vec))
-        self.y_fusion = self.fusion_dnn(concat_vec)
+        if self.experiment_parameters['learningtype'] == 'SIL':
+            self.y_fusion = self.fusion_dnn(concat_vec)
 
-        return self.y_local, self.y_global, self.y_fusion, self.saliency_map
+        if self.experiment_parameters['learningtype'] == 'SIL':
+            return self.y_local, self.y_global, self.y_fusion, self.saliency_map
+        elif self.experiment_parameters['learningtype'] == 'MIL':
+            return z, topt_feature, self.y_global, concat_vec, self.saliency_map
+
 
 def _gmic(gmic_parameters):
     gmic_model = GMIC(gmic_parameters)

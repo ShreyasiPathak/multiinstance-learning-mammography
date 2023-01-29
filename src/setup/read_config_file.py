@@ -159,7 +159,8 @@ def read_config_file(config_file):
             "use_v1_global":True,
             "percent_t": config_params['topkpatch'],
             'arch':'resnet18',
-            'pretrained': config_params['pretrained']
+            'pretrained': config_params['pretrained'],
+            'learningtype': config_params['learningtype']
         }
 
     return config_params
