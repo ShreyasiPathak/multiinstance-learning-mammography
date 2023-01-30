@@ -31,6 +31,7 @@ from collections import Counter
 import operator
 from sklearn.model_selection import GroupShuffleSplit
 from torch.autograd import Variable
+from copy import deepcopy
 import imageio
 
 from data_loading import augmentations, loading
@@ -803,113 +804,97 @@ def removing_weight_decay_momentum(optimizer,layer_keyword,optimizer_params_dic)
     optimizer.param_groups[index]['weight_decay']=0
     return optimizer
 
-def freeze_layers(model, layer_keyword):
+def unfreeze_layers(model, layer_keyword):
     for name,param in model.named_parameters():
-        #print(name)
         if layer_keyword in name:
-            param.requires_grad=False
-            #print(name,param.requires_grad)
+            param.requires_grad = True
     return model
 
-def freeze_weight_update_adam(optimizer, layer_keyword, optimizer_params_dic):
-    index=optimizer_params_dic[layer_keyword]
-    for p in optimizer.param_groups[index]['params']:
-        state = optimizer.state[p]
-        m = state['exp_avg']
-        v = state['exp_avg_sq']
-        
+def freeze_layers(model, layer_keyword):
+    for name,param in model.named_parameters():
+        if layer_keyword in name:
+            param.requires_grad = False
+    return model
+
+def unfreeze_wt_update(optimizer, layer_keyword, optimizer_params_dic, previous_lr):
+    index = optimizer_params_dic[layer_keyword]
+    optimizer.param_groups[index]['lr'] = previous_lr
     return optimizer
 
-def dynamic_training(config_params, views_names, optimizer):
+def freeze_wt_update(optimizer, layer_keyword, optimizer_params_dic):
+    index = optimizer_params_dic[layer_keyword]
+    old_lr = optimizer.param_groups[index]['lr']
+    optimizer.param_groups[index]['lr'] = 0
+    return optimizer, old_lr
+
+def return_optimstate(optimizer, layer_keyword, optimizer_params_dic):
+    optim_state = {}
+    count_params_end = 0
+    index = optimizer_params_dic[layer_keyword]
+    count_param_group = len(optimizer.param_groups[index]['params'])
+    for id in range(0, index+1):
+        count_params_end+= len(optimizer.param_groups[id]['params'])
+    
+    for id in range(count_params_end-count_param_group, count_params_end):
+        if id in optimizer.state_dict()['state'].keys():
+            optim_state[id] = deepcopy(optimizer.state_dict()['state'][id])
+    return optim_state
+
+def assign_previous_optimstate(optimizer, previous_state):
+    if previous_state:
+        state_dict = optimizer.state_dict()
+        state_dict['state'].update(previous_state)
+        optimizer.load_state_dict(state_dict)
+    return optimizer
+
+def dynamic_training(config_params, views_names, model, optimizer, previous_state, previous_lr, before_optimupdate):
     if config_params['attention'] == 'breastwise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
         optimizer_params_dic = {'both.attention':0, 'perbreast.attention':1}
     elif config_params['attention'] == 'imagewise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
         optimizer_params_dic = {'img.attention':0}
     
-    #print(views_names)
     view_split = np.array([view[1:] for view in views_names])
     view_split = np.unique(view_split).tolist()
     breast_split = np.array([view[0] for view in views_names])
     breast_split = breast_split.tolist()
-    #print(view_split,breast_split)
 
     #attention weighing switch off
-    if config_params['attention'] =='breastwise':
+    if config_params['attention'] == 'breastwise':
+        #print("I am switching off perbreast.attention")
         if breast_split.count('L')<2 and breast_split.count('R')<2:
-            #print("I am switching off _left.attention")
-            model=freeze_layers(model,'perbreast.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, 'perbreast.attention', optimizer_params_dic)
+            if before_optimupdate:
+                model = freeze_layers(model, 'perbreast.attention')
+                previous_state = return_optimstate(optimizer, 'perbreast.attention',  optimizer_params_dic)
+            else:
+                optimizer = assign_previous_optimstate(optimizer, 'perbreast.attention', optimizer_params_dic, previous_state)
+                model = unfreeze_layers(model, 'perbreast.attention')
+        
+        #print("I am switching off both.attention")       
         if (breast_split.count('L')==0) or (breast_split.count('R')==0):
-            #print("I am switching off both.attention")
-            model=freeze_layers(model,'both.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, 'both.attention', optimizer_params_dic)
+            if before_optimupdate:
+                model = freeze_layers(model, 'both.attention')
+                optimizer, previous_lr = freeze_wt_update(optimizer, 'both.attention',  optimizer_params_dic)
+                previous_state = return_optimstate(optimizer, 'both.attention',  optimizer_params_dic)
+            else:
+                optimizer = assign_previous_optimstate(optimizer, 'both.attention', optimizer_params_dic, previous_state)
+                model = unfreeze_layers(model, 'both.attention')
     
-    elif config_params['attention']=='imagewise':
+    elif config_params['attention'] == 'imagewise':
         if len(views_names)==1:
-            model = freeze_layers(model,'model_attention.attention')
-            optimizer=removing_weight_decay_momentum(optimizer, 'model_attention.attention', optimizer_params_dic)
+            if before_optimupdate:
+                model = freeze_layers(model, 'img.attention')
+                optimizer, previous_lr = freeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic)
+                previous_state = return_optimstate(optimizer, 'img.attention',  optimizer_params_dic)
+            else:
+                optimizer = assign_previous_optimstate(optimizer, previous_state)
+                model = unfreeze_layers(model, 'img.attention')
+                optimizer = unfreeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic, previous_lr)     
+    
+    if before_optimupdate:
+        return model, optimizer, previous_state, previous_lr
+    else:
+        return model, optimizer
 
-    freeze_weight_update_adam(optimizer, 'perbreast.attention', optimizer_params_dic)
-
-def freeze_pipelines(model,optimizer,views_names, attention, feature_extractor, activation, epoch, trainingmethod, epoch_step):
-    if activation=='softmax':
-        if attention=='breastwise' and feature_extractor=='viewwise':
-            optimizer_params_dic={'.mlo':0,'.cc':1,'both.attention':2,'perbreast.attention':3}
-        elif attention=='breastwise' and feature_extractor=='common':
-            optimizer_params_dic={'both.attention':0,'perbreast.attention':1}
-        elif attention=='imagewise' and feature_extractor=='viewwise':
-            optimizer_params_dic={'.mlo':0,'.cc':1,'model_attention.attention':2}
-        elif attention=='imagewise' and feature_extractor=='common':
-            optimizer_params_dic={'model_attention.attention':0}
-        elif feature_extractor=='viewwise':
-            optimizer_params_dic={'.mlo':0,'.cc':1}
-    
-    #print(views_names)
-    view_split=np.array([view[1:] for view in views_names])
-    view_split=np.unique(view_split).tolist()
-    breast_split=np.array([view[0] for view in views_names])
-    breast_split=breast_split.tolist()
-    #print(view_split,breast_split)
-    
-    #model switching on all weights
-    model = layer_selection_for_training(model, epoch, trainingmethod, epoch_step)
-    #for name,param in model.named_parameters():
-    #    param.requires_grad=True
-    
-    for param_groups in optimizer.param_groups:
-        param_groups['momentum']=0.9 
-        param_groups['weight_decay']=0.0005
-    
-    if feature_extractor=='viewwise':
-        #model switch off
-        if view_split==['CC']:
-            #print("I am switching off .mlo")
-            model=freeze_layers(model, '.mlo')
-            optimizer=removing_weight_decay_momentum(optimizer, '.mlo', optimizer_params_dic)
-        elif view_split==['MLO']:
-            #print("I am switching off .cc")
-            model=freeze_layers(model,'.cc')
-            optimizer=removing_weight_decay_momentum(optimizer, '.cc', optimizer_params_dic)
-    
-    #attention weighing switch off
-    if attention=='breastwise':
-        if activation=='softmax':
-            if breast_split.count('L')<2 and breast_split.count('R')<2:
-                #print("I am switching off _left.attention")
-                model=freeze_layers(model,'perbreast.attention')
-                optimizer=removing_weight_decay_momentum(optimizer, 'perbreast.attention', optimizer_params_dic)
-            if (breast_split.count('L')==0) or (breast_split.count('R')==0):
-                #print("I am switching off both.attention")
-                model=freeze_layers(model,'both.attention')
-                optimizer=removing_weight_decay_momentum(optimizer, 'both.attention', optimizer_params_dic)
-    
-    elif attention=='imagewise':
-        if activation=='softmax':
-            if len(views_names)==1:
-                model=freeze_layers(model,'model_attention.attention')
-                optimizer=removing_weight_decay_momentum(optimizer, 'model_attention.attention', optimizer_params_dic)
-    
-    return model, optimizer
 
 def freeze_pipelines_kim(model,optimizer,views_names, attention, feature_extractor, activation):
     if activation=='softmax':

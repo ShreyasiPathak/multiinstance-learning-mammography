@@ -31,7 +31,7 @@ for hyperparam in hyperparam_config[start:end]:
             "attention": False,  #options = imagewise, breastwise, False
             "milpooling": False, #options=maxpool, average, attention, gatedattention, concat/ ismax, ismean, isatt, isgatt, esmax, esmean, esatt, esgatt
             "activation": 'sigmoid', #options = sigmoid, softmax
-            "viewsinclusion": 'standard', #option = standard, all -> change this to viewsinclusion: standard, all
+            "viewsinclusion": 'standard', #option = standard, all -> change this to viewsinclusion: standard, all; in SIL: standard means all views. I put standard to prevent the dynamic training part of the code.
             "classimbalance": 'poswt', #options = wtcostfunc, poswt, oversampling, focalloss,False
             "optimizer": 'Adam', #options = SGD, Adam
             "patienceepochs": 10, #10
@@ -52,8 +52,8 @@ for hyperparam in hyperparam_config[start:end]:
             "datascaling": 'scaling', #options=scaling, standardize, standardizeperimage,False
             "flipimage": True,
             "randseedother": 8, #options=8, 24, 80
-            "randseeddata": 8, #options=8, 24, 80
-            "device": 'cuda:3',
+            "randseeddata": 80, #options=8, 24, 80
+            "device": 'cuda:5',
             "trainingmethod": 'fixedlr', #options: multisteplr1, fixedlr, lrdecayshu, lrdecaykim
             "channel": 3, #options: 3 for rgb, 1 for grayscale
             "regionpooling": 't-pool', #options: shu_ggp, shu_rgp, avgpool, maxpool, 1x1conv, t-pool
@@ -76,7 +76,7 @@ for hyperparam in hyperparam_config[start:end]:
 
     for key in config_object["parametersetting"].keys():
         print(key, config_object["parametersetting"][key])
-        if key in ['modelid', 'attention', 'milpooling', 'femodel', 'viewsinclusion', 'papertoreproduce', 'learningtype']:# 'regionpooling',]:
+        if key in ['modelid', 'attention', 'milpooling', 'femodel', 'viewsinclusion', 'papertoreproduce', 'learningtype', 'extra']:# 'regionpooling',]:
             #print(key, config_object["parametersetting"][key])
             if config_object["parametersetting"][key]!='False':
                 if filename=='':

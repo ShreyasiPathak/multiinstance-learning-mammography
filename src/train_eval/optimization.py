@@ -43,7 +43,7 @@ def optimizer_fn(config_params, model):
                     image_attention_group.append(param)
                 else:
                     rest_group.append(param)
-        for item in [both_attention_group, image_attention_group, perbreast_attention_group, rest_group]:
+        for item in [both_attention_group, perbreast_attention_group, image_attention_group, rest_group]:
             if item:
                 param_list.append({"params":item, "lr":config_params['lr'], "momentum":0.9, "weight_decay": config_params['wtdecay']})
         if config_params['optimizer']=='Adam':

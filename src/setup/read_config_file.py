@@ -14,7 +14,7 @@ def read_config_file(config_file):
     #parameters from config.ini for training the model
     config_params['randseedother'] = int(config_object["parametersetting"]['randseedother'])
     config_params['randseeddata'] = int(config_object["parametersetting"]['randseeddata'])
-    config_params['batchsize'] = int(config_object['parametersetting']['batchsize'])#10
+    config_params['batchsize'] =  int(config_object['parametersetting']['batchsize'])#10
     config_params['numclasses'] = int(config_object["parametersetting"]['numclasses'])
     config_params['maxepochs'] = int(config_object["parametersetting"]['maxepochs'])
     config_params['numworkers'] = int(config_object["parametersetting"]['numworkers'])

@@ -106,9 +106,9 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             train_labels = train_labels.to(config_params['device'])
             train_labels = train_labels.view(-1)
             print("train batch:",train_batch.shape)
-            
-            #if config_params['viewsinclusion']=='variable':
-            #    model, optimizer = utils.freeze_pipelines(model, optimizer, views_names, attention, feature_extractor)
+
+            if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
+                model, optimizer, state_before_optim, lr_before_optim = utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
             
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
@@ -141,14 +141,35 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 elif config_params['activation'] == 'softmax':
                     pred = output_batch.argmax(dim=1, keepdim=True)
                     loss = lossfn(output_batch, train_labels)
-            
+
             loss_train+=(train_labels.size()[0]*loss.item())
+
+            '''weights_before_backprop = []
+            parameter_name=[]
+
+            for name, param in model.named_parameters(): # loop the weights in the model before updating and store them
+                parameter_name.append(name)
+                weights_before_backprop.append(param.clone())
+            '''
 
             optimizer.zero_grad()  # clear previous gradients, compute gradients of all variables wrt loss
             loss.backward()
             optimizer.step() # performs updates using calculated gradients
             batch_no=batch_no+1
-           
+
+            if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
+                model, optimizer = utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
+
+            '''weights_after_backprop = [] # weights after backprop
+            for name, param in model.named_parameters():
+                weights_after_backprop.append(param.clone()) # only layer1's weight should update, layer2 is not used
+            
+            for i in zip(parameter_name, weights_before_backprop, weights_after_backprop):
+                if torch.equal(i[1],i[2]):
+                    print(i[0], torch.equal(i[1],i[2]))
+            input('halt')
+            '''
+
             #performance metrics of training dataset
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
             print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()))
