@@ -853,43 +853,44 @@ def dynamic_training(config_params, views_names, model, optimizer, previous_stat
     elif config_params['attention'] == 'imagewise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
         optimizer_params_dic = {'img.attention':0}
     
-    view_split = np.array([view[1:] for view in views_names])
-    view_split = np.unique(view_split).tolist()
-    breast_split = np.array([view[0] for view in views_names])
-    breast_split = breast_split.tolist()
+    if config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt':
+        view_split = np.array([view[1:] for view in views_names])
+        view_split = np.unique(view_split).tolist()
+        breast_split = np.array([view[0] for view in views_names])
+        breast_split = breast_split.tolist()
 
-    #attention weighing switch off
-    if config_params['attention'] == 'breastwise':
-        #print("I am switching off perbreast.attention")
-        if breast_split.count('L')<2 and breast_split.count('R')<2:
-            if before_optimupdate:
-                model = freeze_layers(model, 'perbreast.attention')
-                previous_state = return_optimstate(optimizer, 'perbreast.attention',  optimizer_params_dic)
-            else:
-                optimizer = assign_previous_optimstate(optimizer, 'perbreast.attention', optimizer_params_dic, previous_state)
-                model = unfreeze_layers(model, 'perbreast.attention')
+        #attention weighing switch off
+        if config_params['attention'] == 'breastwise':
+            #print("I am switching off perbreast.attention")
+            if breast_split.count('L')<2 and breast_split.count('R')<2:
+                if before_optimupdate:
+                    model = freeze_layers(model, 'perbreast.attention')
+                    previous_state = return_optimstate(optimizer, 'perbreast.attention',  optimizer_params_dic)
+                else:
+                    optimizer = assign_previous_optimstate(optimizer, 'perbreast.attention', optimizer_params_dic, previous_state)
+                    model = unfreeze_layers(model, 'perbreast.attention')
+            
+            #print("I am switching off both.attention")       
+            if (breast_split.count('L')==0) or (breast_split.count('R')==0):
+                if before_optimupdate:
+                    model = freeze_layers(model, 'both.attention')
+                    optimizer, previous_lr = freeze_wt_update(optimizer, 'both.attention',  optimizer_params_dic)
+                    previous_state = return_optimstate(optimizer, 'both.attention',  optimizer_params_dic)
+                else:
+                    optimizer = assign_previous_optimstate(optimizer, 'both.attention', optimizer_params_dic, previous_state)
+                    model = unfreeze_layers(model, 'both.attention')
         
-        #print("I am switching off both.attention")       
-        if (breast_split.count('L')==0) or (breast_split.count('R')==0):
-            if before_optimupdate:
-                model = freeze_layers(model, 'both.attention')
-                optimizer, previous_lr = freeze_wt_update(optimizer, 'both.attention',  optimizer_params_dic)
-                previous_state = return_optimstate(optimizer, 'both.attention',  optimizer_params_dic)
-            else:
-                optimizer = assign_previous_optimstate(optimizer, 'both.attention', optimizer_params_dic, previous_state)
-                model = unfreeze_layers(model, 'both.attention')
-    
-    elif config_params['attention'] == 'imagewise':
-        if len(views_names)==1:
-            if before_optimupdate:
-                model = freeze_layers(model, 'img.attention')
-                optimizer, previous_lr = freeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic)
-                previous_state = return_optimstate(optimizer, 'img.attention',  optimizer_params_dic)
-            else:
-                optimizer = assign_previous_optimstate(optimizer, previous_state)
-                model = unfreeze_layers(model, 'img.attention')
-                optimizer = unfreeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic, previous_lr)     
-    
+        elif config_params['attention'] == 'imagewise':
+            if len(views_names)==1:
+                if before_optimupdate:
+                    model = freeze_layers(model, 'img.attention')
+                    optimizer, previous_lr = freeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic)
+                    previous_state = return_optimstate(optimizer, 'img.attention',  optimizer_params_dic)
+                else:
+                    optimizer = assign_previous_optimstate(optimizer, previous_state)
+                    model = unfreeze_layers(model, 'img.attention')
+                    optimizer = unfreeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic, previous_lr)     
+        
     if before_optimupdate:
         return model, optimizer, previous_state, previous_lr
     else:

@@ -16,7 +16,7 @@ def read_config_file(config_file):
     config_params['randseeddata'] = int(config_object["parametersetting"]['randseeddata'])
     config_params['batchsize'] =  int(config_object['parametersetting']['batchsize'])#10
     config_params['numclasses'] = int(config_object["parametersetting"]['numclasses'])
-    config_params['maxepochs'] = int(config_object["parametersetting"]['maxepochs'])
+    config_params['maxepochs'] =  int(config_object["parametersetting"]['maxepochs'])
     config_params['numworkers'] = int(config_object["parametersetting"]['numworkers'])
     config_params['groundtruthdic'] = ast.literal_eval(config_object["parametersetting"]['groundtruthdic'])
     config_params['classes'] = ast.literal_eval(config_object["parametersetting"]['classes'])
@@ -28,7 +28,7 @@ def read_config_file(config_file):
     config_params['datasplit'] = config_object["parametersetting"]['datasplit']
     config_params['optimizer'] = config_object["parametersetting"]['optimizer']
     config_params['milpooling'] = config_object["parametersetting"]['milpooling']
-    config_params['device'] = config_object["parametersetting"]['device']
+    config_params['device'] = 'cuda:0' #config_object["parametersetting"]['device']
     config_params['learningtype'] = config_object["parametersetting"]['learningtype']
     config_params['channel'] = int(config_object["parametersetting"]['channel'])
     config_params['labeltouse'] = config_object["parametersetting"]['labeltouse']

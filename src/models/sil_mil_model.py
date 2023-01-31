@@ -242,11 +242,14 @@ class MILpooling(nn.Module):
     def MILPooling_ISMean(self, x, views_names, activation):
         '''Average pooling based on bag size
         '''
-        x = x.view(x.shape[0],x.shape[1],x.shape[2]) #Nx4x2
+        #print("start:", x.shape)
+        x = x.view(x.shape[0],x.shape[1],x.shape[2]) #Nx4x2/ Nx4x1
+        #print('x.shape:', x.shape)
         if activation == 'softmax':
             x = torch.cat((x[:,:,0].view(-1,1,len(views_names)),x[:,:,1].view(-1,1,len(views_names))),dim=1) #Nx2x4
         elif activation == 'sigmoid':
             x = x.view(x.shape[0],x.shape[2],x.shape[1])
+        #print('again x.shape:', x.shape)
         x = torch.mean(x, dim=2)
         #x = F.avg_pool1d(x,kernel_size=np.unique(np.array(bag_size_list))[0]) #Nx2x1
         return x
@@ -291,25 +294,36 @@ class MILpooling(nn.Module):
             if featuretype == 'local':
                 M = self.classifier_local(M)  
             elif featuretype == 'global':
-                if len(M.shape) == 3 and M.shape[1] == 1:
-                    M = M.view(M.shape[0], -1)
-                M = M.mean(dim=1)
+                M = M.mean(dim=2)
+                M = M.unsqueeze(2)
             elif featuretype == 'fusion':
                 M = self.classifier_fusion(M)
         else:
             M = self.classifier(M)
+        #print("M.shape:",M.shape)
         return M
 
     def ISMean(self, featuretype, h_all, views_names):
+        #print("h_all:",h_all.shape)
+        print(featuretype)
+        print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
+        print(M.shape)
         M = self.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
+        print(M.shape)
         M = M.view(M.shape[0],-1) #Nx2
+        print(M.shape)
         return M
     
     def ISMax(self, featuretype, h_all, views_names):
+        print(featuretype)
+        print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
+        print(M.shape)
         M = self.MILPooling_ISMax(M, views_names, self.activation) #Nx2 or Nx1
+        print(M.shape)
         M = M.view(M.shape[0],-1) #Nx2
+        print(M.shape)
         return M
     
     def ISAtt(self, featuretype, h_all, views_names): #same for ISGatt
@@ -322,12 +336,14 @@ class MILpooling(nn.Module):
     
     def ESMean(self, featuretype, h_all, views_names):
         h_all = torch.sum(h_all, dim = 1)/len(views_names)
+        h_all = h_all.unsqueeze(1)
         M = self.classifier_score(featuretype, h_all) 
         M = M.view(M.shape[0],-1)
         return M
     
     def ESMax(self, featuretype, h_all):
         h_all, _ = torch.max(h_all, dim=1)
+        h_all = h_all.unsqueeze(1)
         M = self.classifier_score(featuretype, h_all) 
         M = M.view(M.shape[0],-1)
         return M
@@ -454,10 +470,10 @@ class MILmodel(nn.Module):
         for counter, view in enumerate(views_names):
             if self.featureextractormodel == 'gmic_resnet18':
                 if counter==0:
-                    h_all_local = h[view][0].unsqueeze(1)
-                    h_all_global = h[view][1].unsqueeze(1)
-                    #y_all_global = h[view][2].unsqueeze(1)
-                    h_all_fusion = h[view][2].unsqueeze(1)
+                    h_all_local = h[view][0].unsqueeze(1) #Nx1x512
+                    h_all_global = h[view][1].unsqueeze(1) #Nx1x110
+                    #y_all_global = h[view][2].unsqueeze(1) #Nx1x1024
+                    h_all_fusion = h[view][2].unsqueeze(1) #Nx1x1x92x60
                     all_saliency_map = h[view][3].unsqueeze(1)
                 else:
                     h_all_local = torch.cat((h_all_local, h[view][0].unsqueeze(1)), dim=1)
@@ -525,11 +541,11 @@ class MILmodel(nn.Module):
         
             elif self.milpooling=='esmax':
                 if self.featureextractormodel == 'gmic_resnet18':
-                    y_local = self.milpooling_block.ESMax('local', h_all[0], views_names)
-                    y_global = self.milpooling_block.ESMax('global', h_all[1], views_names)
-                    y_fusion = self.milpooling_block.ESMax('fusion', h_all[2], views_names)
+                    y_local = self.milpooling_block.ESMax('local', h_all[0])
+                    y_global = self.milpooling_block.ESMax('global', h_all[1])
+                    y_fusion = self.milpooling_block.ESMax('fusion', h_all[2])
                 else:
-                    y_pred = self.milpooling_block.ESMax(None, h_all, views_names)
+                    y_pred = self.milpooling_block.ESMax(None, h_all)
             
         elif self.attention=='breastwise':
             if self.milpooling=='esatt' or self.milpooling=='esgatt':
@@ -600,7 +616,7 @@ class FourViewResNet(nn.Module):
     def single_forward(self, single_view):
         if self.featureextractormodel == 'gmic_resnet18':
             local_feature, topt_feature_global, y_global, fusion_feature, saliency_map = self.feature_extractor(single_view)
-            single_view_feature = [local_feature, topt_feature_global, fusion_feature, saliency_map]
+            single_view_feature = [local_feature, topt_feature_global.squeeze(1), fusion_feature, saliency_map]
         else:
             single_view_feature = self.feature_extractor(single_view)
             single_view_feature = single_view_feature.view(single_view_feature.shape[0], single_view_feature.shape[1])

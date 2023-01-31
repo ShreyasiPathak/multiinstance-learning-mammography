@@ -54,7 +54,7 @@ def model_initialization(config_params):
         if param.requires_grad:
             print(name)
     #print(model)
-    model.to(config_params['device'])
+    model.to(torch.device(config_params['device']))
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total model parameters:", pytorch_total_params)
 
@@ -339,6 +339,12 @@ if __name__=='__main__':
         print("config file reading:",config_file)
         config_params = read_config_file.read_config_file(config_file)
         
+        # CUDA for PyTorch
+        use_cuda = torch.cuda.is_available()
+        device = torch.device(config_params['device'] if use_cuda else "cpu")
+        #device = torch.device('cuda:2' if use_cuda else "cpu")
+        print(device)
+
         g = set_random_seed(config_params)
         
         if config_params['usevalidation']:
