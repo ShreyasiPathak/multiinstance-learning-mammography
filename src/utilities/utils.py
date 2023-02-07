@@ -33,13 +33,14 @@ from sklearn.model_selection import GroupShuffleSplit
 from torch.autograd import Variable
 from copy import deepcopy
 import imageio
+import re
 
 from data_loading import augmentations, loading
 
 
 groundtruth_dic = {'benign':0,'malignant':1}
 inverted_groundtruth_dic = {0:'benign',1:'malignant'}
-views_allowed = ['LCC','LMLO','RCC','RMLO']
+#views_allowed = ['LCC','LMLO','RCC','RMLO']
 views_allowed_gmic = ['L-CC','L-MLO','R-CC','R-MLO']
 cbis_view_dic = {'LEFT_CC': 'LCC', 'RIGHT_CC': 'RCC', 'LEFT_MLO': 'LMLO', 'RIGHT_MLO': 'RMLO'}
 #optimizer_params_dic={'.mlo':0,'.cc':1,'_left.attention':2,'_right.attention':3,'_both.attention':4}
@@ -468,24 +469,41 @@ def MyCollateBreastWise(batch):
     return [index, data, target, list(np.unique(views_names_list))]
 
 ##--------------------------------------------------------------- collect image ----------------------------------------------------#
-def view_extraction(series_list):
-    #cbis specific
-    series_list = list(map(lambda x: [x.split('_')[0].upper(), x], series_list))
+def view_extraction(series_list, views_allowed):
+    series_list = list(map(lambda x: [x.split('_')[0].replace(' ', '').upper(), x], series_list))
+    series_list = list(filter(lambda x: x[0] in views_allowed, series_list))
     series_list = sorted(series_list, key=lambda x: x[0])
     return series_list
 
+def selecting_data(config_params, img_list):
+    if config_params['dataset'] == 'zgt':
+        if config_params['bitdepth'] == 8:
+            img_list = list(filter(lambda x: re.search('_processed.png$', x), img_list))
+        elif config_params['bitdepth'] == 12:
+            img_list = list(filter(lambda x: re.search('_processed.npy$', x), img_list))
+    return img_list
+
+def views_allowed_dataset(config_params):
+    if config_params['dataset'] == 'zgt' and config_params['viewsinclusion'] == 'all':
+        views_allowed=['LCC', 'LLM', 'LML', 'LMLO', 'LXCCL', 'RCC', 'RLM', 'RML', 'RMLO', 'RXCCL']
+    else:
+        views_allowed = ['LCC','LMLO','RCC','RMLO']
+    return views_allowed
+
 def collect_cases(config_params, data):
+    views_allowed = views_allowed_dataset(config_params)
     breast_side=[]
     image_read_list=[]
     views_saved=[]
     data1 = {}
     studyuid_path = str(data['FullPath'])
     series_list = os.listdir(studyuid_path)
-    series_list = view_extraction(series_list)
+    series_list = view_extraction(series_list, views_allowed)
     #series_list.sort()
     for series in series_list:
         series_path = studyuid_path+'/'+series[1]
-        img_list=os.listdir(series_path)
+        img_list = os.listdir(series_path)
+        img_list = selecting_data(config_params, img_list)
         for image in img_list:
             img_path = series_path+'/'+image
             data1['FullPath'] = img_path
@@ -498,16 +516,19 @@ def collect_cases(config_params, data):
     return image_read_list, breast_side, views_saved
 
 def collect_images(config_params, data):
+    views_allowed = views_allowed_dataset(config_params)
     if config_params['bitdepth'] ==  8:
-        img = collect_images_8bits(config_params, data)
+        img = collect_images_8bits(config_params, data, views_allowed)
     elif config_params['bitdepth'] == 16:
         if config_params['imagecleaning'] == 'gmic':
             img = collect_images_gmiccleaningcode(data)
         else:
-            img = collect_images_16bits(config_params, data)
+            img = collect_images_16bits(config_params, data, views_allowed)
+    elif config_params['bitdepth'] == 12:
+        img = collect_images_12bits(config_params, data, views_allowed)
     return img
          
-def collect_images_8bits(config_params, data):
+def collect_images_8bits(config_params, data, views_allowed):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
@@ -521,7 +542,7 @@ def collect_images_8bits(config_params, data):
         print('error in view')
         sys.exit()
 
-def collect_images_16bits(config_params, data):
+def collect_images_16bits(config_params, data, views_allowed):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
@@ -537,6 +558,26 @@ def collect_images_16bits(config_params, data):
             img = hflip_img(img,breast_side)
         return img
     else:
+        print('error in view')
+        sys.exit()
+
+def collect_images_12bits(config_params, data, views_allowed):
+    #collect images for the model
+    #print(data['Views'])
+    #print(views_allowed)
+    if data['Views'] in views_allowed:
+        img_path = str(data['FullPath'])
+        img = np.load(img_path).astype(np.float32)
+        img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
+        breast_side = data['Views'][0]
+        img/=4095
+        img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
+        if config_params['flipimage']:
+            hflip_img = MyHorizontalFlip()
+            img = hflip_img(img,breast_side)
+        return img
+    else:
+        print(data['FullPath'])
         print('error in view')
         sys.exit()
 
@@ -988,7 +1029,8 @@ def freeze_pipelines_kim(model,optimizer,views_names, attention, feature_extract
     
     return model, optimizer
 
-def views_distribution(df):
+def views_distribution(config_params, df):
+    views_allowed = views_allowed_dataset(config_params)
     views_dic={}
     views_dic_allowed={}
     single_views_dic={}
@@ -1212,7 +1254,7 @@ def performance_metrics(conf_mat,y_true,y_pred,y_prob):
     cohen_kappa=metrics.cohen_kappa_score(y_true,y_pred)
     if y_prob is None:
         auc=0.0
-    else:    
+    else: 
         auc=metrics.roc_auc_score(y_true,y_prob)
     each_model_metrics=[prec,rec,spec,f1,f1macro,f1wtmacro,acc,bal_acc,cohen_kappa,auc]
     return each_model_metrics
@@ -1409,7 +1451,8 @@ def data_augmentation(img_path):
     img1 = TF.adjust_gamma(img1,gamma) #gamma larger than 1 make the shadows darker, while gamma smaller than 1 make dark regions lighter
     '''
 
-def crosscheck_view_collect_images(df):
+def crosscheck_view_collect_images(config_params, df):
+    views_allowed = views_allowed_dataset(config_params)
     #collect images for the model
     length=len(df.index)
     i=0

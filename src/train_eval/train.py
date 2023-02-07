@@ -8,6 +8,7 @@ Created on Wed Sep 22 16:43:24 2021
 import re
 import os
 import math
+import time
 import torch
 import datetime
 import argparse
@@ -56,7 +57,7 @@ def model_initialization(config_params):
     #print(model)
     model.to(torch.device(config_params['device']))
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Total model parameters:", pytorch_total_params)
+    print("Total model parameters:", pytorch_total_params, flush=True)
 
     return model, pytorch_total_params
 
@@ -76,7 +77,9 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
     class_weights_train = loss_function.class_imbalance(config_params, df_train)
 
     if os.path.isfile(path_to_model):
-        model, _, start_epoch = utils.load_model(model, optimizer, path_to_model)
+        model, optimizer, start_epoch = utils.load_model(model, optimizer, path_to_model)
+        if config_params['patienceepochs']:
+            modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, best_score=-4.0123425437336495, patience=config_params['patienceepochs'], verbose=True)
         print("start epoch:",start_epoch)
         print("lr:",optimizer.param_groups[0]['lr'])
     else:
@@ -102,10 +105,11 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             model = utils.layer_selection_for_training(model,epoch, config_params['trainingmethod'], epoch_step=5)
         
         for train_idx, train_batch, train_labels, views_names in data_iterator_train:
+            print('Current Time after one batch loading:', time.ctime(time.time()), flush = True)
             train_batch = train_batch.to(config_params['device'])
             train_labels = train_labels.to(config_params['device'])
             train_labels = train_labels.view(-1)
-            print("train batch:",train_batch.shape)
+            print("train batch:", train_batch.shape, flush=True)
 
             if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
                 model, optimizer, state_before_optim, lr_before_optim = utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
@@ -172,13 +176,14 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
 
             #performance metrics of training dataset
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
-            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()))
+            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()), flush = True)
+            print('Current Time after one batch training:', time.ctime(time.time()), flush=True)
         
         if scheduler!=None:
             current_lr=scheduler.get_last_lr()[0]
         else:
             current_lr=optimizer.param_groups[0]['lr']
-        print("current lr:",current_lr)
+        print("current lr:",current_lr, flush=True)
         
         running_train_loss = loss_train/total_images_train
 
@@ -193,7 +198,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         if config_params['patienceepochs']:
             modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
             if modelcheckpoint.early_stop:
-                print("Early stopping",epoch+1)
+                print("Early stopping",epoch+1, flush = True)
                 break
         else:
             if config_params['usevalidation']:
@@ -207,12 +212,15 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
 
         if scheduler!=None: 
             scheduler.step()
-    
+
+        print('Current Time after validation check on the last epoch:', time.ctime(time.time()), flush=True)
+
     if config_params['usevalidation']:
         evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_train_best, path_to_results_xlsx, 'confmat_train_val_test')
         evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_test_best, path_to_results_xlsx, 'confmat_train_val_test')
-   
+
     print('Finished Training')
+    
     
 def validation(config_params, model, data_iterator_val, batches_val, df_val, epoch):
     """Validation"""
@@ -272,7 +280,7 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
             if batch_val_no==0:
                 val_pred_all = val_pred
                 val_labels_all = val_labels
-                print(output_val.data.shape)
+                print(output_val.data.shape, flush=True)
                 if config_params['activation'] == 'sigmoid':
                     output_all_ten = torch.sigmoid(output_val.data)
                 elif config_params['activation'] == 'softmax':
@@ -291,14 +299,14 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
             correct, total_images, conf_mat_val, _ = evaluation.conf_mat_create(val_pred, val_labels, correct, total_images, conf_mat_val, config_params['classes'])
             
             batch_val_no+=1
-            print('Val: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_val_no, batches_val, loss1))
+            print('Val: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_val_no, batches_val, loss1), flush=True)
     
-    print("conf_mat_val:",conf_mat_val)
-    print("total_images:",total_images)
-    print("s:",s)
+    print("conf_mat_val:",conf_mat_val, flush=True)
+    print("total_images:",total_images, flush=True)
+    print("s:",s,flush=True)
     print('\nVal set: total val loss: {:.4f}, Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%), Epoch:{}\n'.format(
         val_loss, val_loss/total_images, correct, total_images,
-        100. * correct / total_images,epoch+1))
+        100. * correct / total_images,epoch+1), flush=True)
     
     auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy())
     return correct, total_images, val_loss, conf_mat_val, auc
@@ -338,12 +346,6 @@ if __name__=='__main__':
         
         print("config file reading:",config_file)
         config_params = read_config_file.read_config_file(config_file)
-        
-        # CUDA for PyTorch
-        use_cuda = torch.cuda.is_available()
-        device = torch.device(config_params['device'] if use_cuda else "cpu")
-        #device = torch.device('cuda:2' if use_cuda else "cpu")
-        print(device)
 
         g = set_random_seed(config_params)
         

@@ -73,7 +73,7 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
             if batch_test_no==0:
                 test_pred_all=test_pred
                 test_labels_all=test_labels
-                print(output_test.data.shape)
+                print(output_test.data.shape, flush=True)
                 if config_params['activation']=='sigmoid':
                     output_all_ten=torch.sigmoid(output_test.data)
                 elif config_params['activation']=='softmax':
@@ -94,18 +94,18 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
             
             batch_test_no+=1
             s=s+test_labels.shape[0]
-            print ('Test: Step [{}/{}], Loss: {:.4f}'.format(batch_test_no, batches_test, loss1))
+            print ('Test: Step [{}/{}], Loss: {:.4f}'.format(batch_test_no, batches_test, loss1), flush=True)
     
     running_loss = test_loss/total_images
-    print("conf_mat_test:",conf_mat_test)
-    print("total_images:",total_images)
-    print("s:",s)
+    print("conf_mat_test:",conf_mat_test, flush=True)
+    print("total_images:",total_images, flush=True)
+    print("s:",s, flush=True)
     print('\nTest set: total test loss: {:.4f}, Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%) \n'.format(
-        test_loss, running_loss, correct, total_images, 100. * correct / total_images))
+        test_loss, running_loss, correct, total_images, 100. * correct / total_images), flush=True)
     
     per_model_metrics = utils.performance_metrics(conf_mat_test,test_labels_all.cpu().numpy(),test_pred_all.cpu().numpy(), output_all_ten.cpu().numpy())
     per_model_metrics = [running_loss] + per_model_metrics
-    print(per_model_metrics)
+    print(per_model_metrics, flush=True)
     
     #val_stats_viewwise = evaluation.calc_viewwise_metric(count_dic_viewwise, conf_mat_viewwise)
     #sheet4 = evaluation.results_viewwise(sheet4, val_stats_viewwise)

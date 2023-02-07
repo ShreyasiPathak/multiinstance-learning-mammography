@@ -26,20 +26,20 @@ for hyperparam in hyperparam_config[start:end]:
     config_object = ConfigParser()
     #Assume we need 2 sections in the config file, let's call them USERINFO and SERVERCONFIG
     config_object["parametersetting"] = {
-            "modelid": 14,
+            "modelid": 3,
             "run": False,
             "attention": 'imagewise',  #options = imagewise, breastwise, False
-            "milpooling": 'esmax', #options=maxpool, average, attention, gatedattention, concat/ ismax, ismean, isatt, isgatt, esmax, esmean, esatt, esgatt
+            "milpooling": 'ismean', #options=maxpool, average, attention, gatedattention, concat/ ismax, ismean, isatt, isgatt, esmax, esmean, esatt, esgatt
             "activation": 'sigmoid', #options = sigmoid, softmax
-            "viewsinclusion": 'all', #option = standard, all -> change this to viewsinclusion: standard, all; in SIL: standard means all views. I put standard to prevent the dynamic training part of the code.
+            "viewsinclusion": 'standard', #option = standard, all -> change this to viewsinclusion: standard, all; in SIL: standard means all views. I put standard to prevent the dynamic training part of the code.
             "classimbalance": 'poswt', #options = wtcostfunc, poswt, oversampling, focalloss,False
             "optimizer": 'Adam', #options = SGD, Adam
             "patienceepochs": 10, #10
             "usevalidation": True,
-            "batchsize": 3, #options=10, 20
+            "batchsize": 5, #options=10, 20
             "numclasses": 1,
-            "maxepochs": 50, #150
-            "numworkers": 8,
+            "maxepochs": 2, #150
+            "numworkers": 20,
             "lr": float(hyperparam['lr']), #10**float(hyperparam['lr']), #0.001, 0.00002
             "wtdecay": float(hyperparam['wtdecay']), #10**float(hyperparam['wtdecay']), #0.0005, 0.00001
             "sm_reg_param": float(hyperparam['sm_reg_param']), #10**float(hyperparam['sm_reg_param']), False
@@ -53,7 +53,7 @@ for hyperparam in hyperparam_config[start:end]:
             "flipimage": True,
             "randseedother": 8, #options=8, 24, 80
             "randseeddata": 24, #options=8, 24, 80
-            "device": 'cuda:4',
+            "device": 'cuda:0',
             "trainingmethod": 'fixedlr', #options: multisteplr1, fixedlr, lrdecayshu, lrdecaykim
             "channel": 3, #options: 3 for rgb, 1 for grayscale
             "regionpooling": 't-pool', #options: shu_ggp, shu_rgp, avgpool, maxpool, 1x1conv, t-pool
@@ -62,14 +62,14 @@ for hyperparam in hyperparam_config[start:end]:
             "topkpatch": 0.02, #options: 0.02, 0.03, 0.05, 0.1
             "ROIpatches": 6, #options: any number, 6 from gmic paper
             "learningtype": 'MIL', #options = SIL, MIL
-            "dataset": 'cbis-ddsm', #options = cbis-ddsm, zgt, vindr
-            "bitdepth": 16, #options: 8, 16
+            "dataset": 'zgt', #options = cbis-ddsm, zgt, vindr
+            "bitdepth": 12, #options: 8, 16
             "labeltouse": 'caselabel', #options: imagelabel, caselabel
-            "SIL_csvfilepath": "/projects/dso_mammovit/project_kushal/data/cbis-ddsm_singleinstance_groundtruth.csv",
-            "MIL_csvfilepath": "/projects/dso_mammovit/project_kushal/data/cbis-ddsm_multiinstance_groundtruth.csv",
-            "preprocessed_imagepath": "/projects/dso_mammovit/project_kushal/data/multiinstance_data_16bit", #options: "/projects/dso_mammovit/project_kushal/data/multiinstance_data_8bit", "/projects/dso_mammovit/project_kushal/data/multiinstance_data_16bit"
+            "SIL_csvfilepath": "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended_SI.csv", #"/projects/dso_mammovit/project_kushal/data/cbis-ddsm_singleinstance_groundtruth.csv",
+            "MIL_csvfilepath": "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended.csv", #"/projects/dso_mammovit/project_kushal/data/cbis-ddsm_multiinstance_groundtruth.csv",
+            "preprocessed_imagepath": "/groups/dso/spathak", #"/local/work/spathak/zgt", #"/projects/dso_mammovit/project_kushal/data/multiinstance_data_16bit", #options: "/projects/dso_mammovit/project_kushal/data/multiinstance_data_8bit", "/projects/dso_mammovit/project_kushal/data/multiinstance_data_16bit"
             "papertoreproduce": False,
-            "extra": False #rgp 
+            "extra": False #options: dynamic_training
     }
     count+=1
     filename=''
@@ -88,7 +88,10 @@ for hyperparam in hyperparam_config[start:end]:
     print(filename)
 
     config_object["parametersetting"]['filename']=filename
-    path_to_output="/homes/spathak/multiview_mammogram/models_results/cbis-ddsm/ijcai2023/"+filename+"/"
+    if config_object["parametersetting"]['dataset'] == 'cbis-ddsm':
+        path_to_output="/homes/spathak/multiview_mammogram/models_results/cbis-ddsm/ijcai2023/"+filename+"/"
+    elif config_object["parametersetting"]['dataset'] == 'zgt':
+        path_to_output="/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/"+filename+"/"
 
     #create output_folder path
     if not os.path.exists(path_to_output):

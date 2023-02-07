@@ -216,7 +216,7 @@ class MILpooling(nn.Module):
         #print(A)
         M = torch.bmm(A, H)  # KxL 10,1,1250 #Nx1x4 x Nx4x625 -> Nx1x625
         #print(M)
-        M = M.squeeze(1) # Nx625
+        #M = M.squeeze(1) # Nx625
         return M
     
     def MILPooling_ISMax(self, x, views_names, activation):
@@ -305,25 +305,25 @@ class MILpooling(nn.Module):
 
     def ISMean(self, featuretype, h_all, views_names):
         #print("h_all:",h_all.shape)
-        print(featuretype)
-        print(h_all.shape)
+        #print(featuretype)
+        #print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
-        print(M.shape)
+        #print(M.shape)
         M = self.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
-        print(M.shape)
+        #print(M.shape)
         M = M.view(M.shape[0],-1) #Nx2
-        print(M.shape)
+        #print(M.shape)
         return M
     
     def ISMax(self, featuretype, h_all, views_names):
-        print(featuretype)
-        print(h_all.shape)
+        #print(featuretype)
+        #print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
-        print(M.shape)
+        #print(M.shape)
         M = self.MILPooling_ISMax(M, views_names, self.activation) #Nx2 or Nx1
-        print(M.shape)
+        #print(M.shape)
         M = M.view(M.shape[0],-1) #Nx2
-        print(M.shape)
+        #print(M.shape)
         return M
     
     def ISAtt(self, featuretype, h_all, views_names): #same for ISGatt
@@ -353,7 +353,7 @@ class MILpooling(nn.Module):
             A, M = self.attention_weights(featuretype, h_all) #Nx2xL
             M = self.MILPooling_attention(A, M) #NxL
         else:
-            h_all = h_all.squeeze(1)
+            #h_all = h_all.squeeze(1)
             M = self.reshape(h_all) #Nx2xL
         M = self.classifier_score(featuretype, M) #Nx2x1
         M = M.view(M.shape[0],-1)

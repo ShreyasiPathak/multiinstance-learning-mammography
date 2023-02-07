@@ -28,7 +28,7 @@ def read_config_file(config_file):
     config_params['datasplit'] = config_object["parametersetting"]['datasplit']
     config_params['optimizer'] = config_object["parametersetting"]['optimizer']
     config_params['milpooling'] = config_object["parametersetting"]['milpooling']
-    config_params['device'] = 'cuda:0' #config_object["parametersetting"]['device']
+    config_params['device'] = config_object["parametersetting"]['device']
     config_params['learningtype'] = config_object["parametersetting"]['learningtype']
     config_params['channel'] = int(config_object["parametersetting"]['channel'])
     config_params['labeltouse'] = config_object["parametersetting"]['labeltouse']
