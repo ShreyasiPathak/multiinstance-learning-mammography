@@ -14,7 +14,7 @@ def read_config_file(config_file):
     #parameters from config.ini for training the model
     config_params['randseedother'] = int(config_object["parametersetting"]['randseedother'])
     config_params['randseeddata'] = int(config_object["parametersetting"]['randseeddata'])
-    config_params['batchsize'] =  int(config_object['parametersetting']['batchsize'])#10
+    config_params['batchsize'] = int(config_object['parametersetting']['batchsize'])#10
     config_params['numclasses'] = int(config_object["parametersetting"]['numclasses'])
     config_params['maxepochs'] =  int(config_object["parametersetting"]['maxepochs'])
     config_params['numworkers'] = int(config_object["parametersetting"]['numworkers'])
@@ -134,7 +134,46 @@ def read_config_file(config_file):
         config_params['ROIpatches'] = False
     else:
         config_params['ROIpatches'] = int(config_params['ROIpatches'])
+
+    try:
+        config_params['valloss_resumetrain'] = config_object["parametersetting"]["valloss_resumetrain"]
+        if config_params['valloss_resumetrain'] == 'False':
+            config_params['valloss_resumetrain'] = None
+        else:
+            config_params['valloss_resumetrain'] = -float(config_params['valloss_resumetrain'])
+    except:
+        config_params['valloss_resumetrain'] = None
     
+    try:
+        config_params['cam_size'] = ast.literal_eval(config_object["parametersetting"]["cam_size"])
+    except:
+        config_params['cam_size'] = (92, 60)
+    
+    try:
+        config_params['dependency'] = config_object["parametersetting"]['dependency']
+        if config_params['dependency'] == 'False':
+            config_params['dependency'] = False
+    except:
+        config_params['dependency'] = False
+    
+    try:
+        config_params['selfatt-nonlinear'] = config_object["parametersetting"]['selfatt-nonlinear']
+        if config_params['selfatt-nonlinear'] == 'False':
+            config_params['selfatt-nonlinear'] = False
+        elif config_params['selfatt-nonlinear'] == 'True':
+            config_params['selfatt-nonlinear'] = True
+    except:
+        config_params['selfatt-nonlinear'] = False
+    
+    try:
+        config_params['selfatt-gamma'] = config_object["parametersetting"]['selfatt-gamma']
+        if config_params['selfatt-gamma'] == 'False':
+            config_params['selfatt-gamma'] = False
+        elif config_params['selfatt-gamma'] == 'True':
+            config_params['selfatt-gamma'] = True
+    except:
+        config_params['selfatt-gamma'] = False
+
     config_params['SIL_csvfilepath'] = config_object["parametersetting"]['SIL_csvfilepath']
     if config_params['SIL_csvfilepath'] == 'False':
         config_params['SIL_csvfilepath'] = False
@@ -151,7 +190,7 @@ def read_config_file(config_file):
             "max_crop_noise": (100, 100),
             "max_crop_size_noise": 100,
             # model related hyper-parameters
-            "cam_size": (92, 60),
+            "cam_size": config_params['cam_size'],
             "K": config_params['ROIpatches'],
             "crop_shape": (256, 256),
             "post_processing_dim": 512,

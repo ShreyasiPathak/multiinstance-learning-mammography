@@ -500,12 +500,9 @@ def collect_cases(config_params, data):
     series_list = os.listdir(studyuid_path)
     series_list = view_extraction(series_list, views_allowed)
     #series_list.sort()
-    for series in series_list:
-        series_path = studyuid_path+'/'+series[1]
-        img_list = os.listdir(series_path)
-        img_list = selecting_data(config_params, img_list)
-        for image in img_list:
-            img_path = series_path+'/'+image
+    if series_list[0][1].split('.')[-1] == 'png':
+        for series in series_list:
+            img_path = studyuid_path + '/' + series[1]
             data1['FullPath'] = img_path
             data1['Views'] = series[0]
             img = collect_images(config_params, data1)
@@ -513,6 +510,32 @@ def collect_cases(config_params, data):
                 views_saved.append(series[0])
                 image_read_list.append(img)
                 breast_side.append(series[0][0])
+    else:
+        for series in series_list:
+            series_path = studyuid_path+'/'+series[1]
+            img_list = os.listdir(series_path)
+            img_list = selecting_data(config_params, img_list)
+            for image in img_list:
+                img_path = series_path+'/'+image
+                data1['FullPath'] = img_path
+                data1['Views'] = series[0]
+                img = collect_images(config_params, data1)
+                if series[0] in views_allowed and series[0] not in views_saved:
+                    if config_params['dataset']  == 'zgt' and config_params['viewsinclusion']=='all' and config_params['bitdepth']==12: #solve this in future
+                        print(img.shape, flush=True)
+                        c, h, w = img.shape
+                        if h>500 and w>500:
+                            views_saved.append(series[0])
+                            image_read_list.append(img)
+                            breast_side.append(series[0][0])
+                    else:
+                        views_saved.append(series[0])
+                        image_read_list.append(img)
+                        breast_side.append(series[0][0])
+        if "+".join(sorted(data['Views'].split('+')))!="+".join(views_saved):
+            print(data['FullPath'], flush=True)
+            print(data['Views'], flush=True)
+            print(views_saved, flush=True)
     return image_read_list, breast_side, views_saved
 
 def collect_images(config_params, data):
@@ -890,7 +913,7 @@ def assign_previous_optimstate(optimizer, previous_state):
 
 def dynamic_training(config_params, views_names, model, optimizer, previous_state, previous_lr, before_optimupdate):
     if config_params['attention'] == 'breastwise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
-        optimizer_params_dic = {'both.attention':0, 'perbreast.attention':1}
+        optimizer_params_dic = {'img.attention':0, 'side.attention':1}
     elif config_params['attention'] == 'imagewise' and (config_params['milpooling'] == 'esatt' or config_params['milpooling'] == 'esgatt' or config_params['milpooling'] == 'isatt' or config_params['milpooling'] == 'isgatt'):
         optimizer_params_dic = {'img.attention':0}
     
@@ -905,21 +928,24 @@ def dynamic_training(config_params, views_names, model, optimizer, previous_stat
             #print("I am switching off perbreast.attention")
             if breast_split.count('L')<2 and breast_split.count('R')<2:
                 if before_optimupdate:
-                    model = freeze_layers(model, 'perbreast.attention')
-                    previous_state = return_optimstate(optimizer, 'perbreast.attention',  optimizer_params_dic)
+                    model = freeze_layers(model, 'img.attention')
+                    optimizer, previous_lr = freeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic)
+                    previous_state = return_optimstate(optimizer, 'img.attention',  optimizer_params_dic)
                 else:
-                    optimizer = assign_previous_optimstate(optimizer, 'perbreast.attention', optimizer_params_dic, previous_state)
-                    model = unfreeze_layers(model, 'perbreast.attention')
+                    optimizer = assign_previous_optimstate(optimizer, previous_state)
+                    model = unfreeze_layers(model, 'img.attention')
+                    optimizer = unfreeze_wt_update(optimizer, 'img.attention',  optimizer_params_dic, previous_lr)
             
             #print("I am switching off both.attention")       
             if (breast_split.count('L')==0) or (breast_split.count('R')==0):
                 if before_optimupdate:
-                    model = freeze_layers(model, 'both.attention')
-                    optimizer, previous_lr = freeze_wt_update(optimizer, 'both.attention',  optimizer_params_dic)
-                    previous_state = return_optimstate(optimizer, 'both.attention',  optimizer_params_dic)
+                    model = freeze_layers(model, 'side.attention')
+                    optimizer, previous_lr = freeze_wt_update(optimizer, 'side.attention',  optimizer_params_dic)
+                    previous_state = return_optimstate(optimizer, 'side.attention',  optimizer_params_dic)
                 else:
-                    optimizer = assign_previous_optimstate(optimizer, 'both.attention', optimizer_params_dic, previous_state)
-                    model = unfreeze_layers(model, 'both.attention')
+                    optimizer = assign_previous_optimstate(optimizer, previous_state)
+                    model = unfreeze_layers(model, 'side.attention')
+                    optimizer = unfreeze_wt_update(optimizer, 'side.attention',  optimizer_params_dic, previous_lr)
         
         elif config_params['attention'] == 'imagewise':
             if len(views_names)==1:

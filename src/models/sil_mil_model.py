@@ -62,6 +62,57 @@ class SILmodel(nn.Module):
             print(M.shape)
             return M
 
+class SelfAttention(nn.Module):
+    def __init__(self, L, D, config_params):
+        super(SelfAttention, self).__init__()
+        self.L = L
+        self.D = D
+        self.sqrt_dim = np.sqrt(self.D)
+        self.gamma = config_params['selfatt-gamma']
+
+        if config_params['selfatt-nonlinear']:
+            self.attention_self_query = nn.Sequential(
+                nn.Linear(self.L, self.D),
+                nn.Tanh()
+            )
+            self.attention_self_key = nn.Sequential(
+                nn.Linear(self.L, self.D),
+                nn.Tanh()
+            )
+        else:
+            self.attention_self_query = nn.Linear(self.L, self.D)
+            self.attention_self_key = nn.Linear(self.L, self.D)
+        
+        self.attention_self_value = nn.Linear(self.L, self.L)
+
+        if self.gamma:
+            self.attention_self_gamma = nn.Parameter((torch.zeros(1)).to(config_params['device']))
+
+    def forward(self, x):
+        #print('x:', x.shape)
+        q = self.attention_self_query(x)
+        #print('q:', q.shape)
+        k = self.attention_self_key(x)
+        #print('k:', k.shape)
+        v = self.attention_self_value(x)
+        #print('v:', v.shape)
+        #print(q)
+        #print(k)
+        #print(v)
+
+        score = torch.bmm(q, k.transpose(1, 2)) / self.sqrt_dim #NxVxD x NxDxV -> NxVXV
+        #print(score)
+        #print('score:', score.shape)
+        A = F.softmax(score, -1) #NxVxV
+        context = torch.bmm(A, v) #NxVxV x NxVxL -> NxVxL
+        if self.gamma:
+            out = self.attention_self_gamma * context + x
+        else:
+            out = context
+        #print(context)
+        #print('context:', context.shape)
+        return out
+
 class Attention(nn.Module):
     def __init__(self, L, D, K):
         super(Attention, self).__init__()
@@ -130,6 +181,7 @@ class MILpooling(nn.Module):
         self.numclasses = config_params['numclasses']
         self.device = config_params['device']
         self.featureextractormodel = config_params['femodel']
+        self.dependency = config_params['dependency']
 
         self.D = 128
         self.K = 1
@@ -147,21 +199,23 @@ class MILpooling(nn.Module):
             self.L_fusion = config_params['gmic_parameters']['post_processing_dim']+512
         
         if self.featureextractormodel == 'gmic_resnet18':
-            self.classifier_local = nn.Linear(self.L_local, config_params['gmic_parameters']["num_classes"], bias=False)
-            self.classifier_fusion = nn.Linear(self.L_fusion, config_params['gmic_parameters']["num_classes"])
-            
+            if self.dependency=='selfatt':
+                self.model_selfattention_local_img = SelfAttention(self.L_local, int(self.L_local/4), config_params)
+                self.model_selfattention_global_img = SelfAttention(self.L_global, self.L_global, config_params)
+                self.model_selfattention_fusion_img = SelfAttention(self.L_fusion, int(self.L_fusion/4), config_params)
+
             if self.milpooling=='isatt' or self.milpooling=='esatt': 
                 if self.attention=='imagewise':
                     self.model_attention_local_img = Attention(self.L_local, self.D, self.K)
                     self.model_attention_global_img = Attention(self.L_global, 50, self.K)
                     self.model_attention_fusion_img = Attention(self.L_fusion, self.D, self.K)
                 elif self.attention=='breastwise':
-                    self.model_attention_local_perbreast = Attention(self.L_local, self.D, self.K)
-                    self.model_attention_global_perbreast = Attention(self.L_global, 50, self.K)
-                    self.model_attention_fusion_perbreast = Attention(self.L_fusion, self.D, self.K)
-                    self.model_attention_local_both = Attention(self.L_local, self.D, self.K)
-                    self.model_attention_global_both = Attention(self.L_global, 50, self.K)
-                    self.model_attention_fusion_both = Attention(self.L_fusion, self.D, self.K)
+                    self.model_attention_local_img = Attention(self.L_local, self.D, self.K)
+                    self.model_attention_global_img = Attention(self.L_global, 50, self.K)
+                    self.model_attention_fusion_img = Attention(self.L_fusion, self.D, self.K)
+                    self.model_attention_local_side = Attention(self.L_local, self.D, self.K)
+                    self.model_attention_global_side = Attention(self.L_global, 50, self.K)
+                    self.model_attention_fusion_side = Attention(self.L_fusion, self.D, self.K)
             
             elif self.milpooling=='isgatt' or self.milpooling=='esgatt':
                 if self.attention=='imagewise':
@@ -169,28 +223,31 @@ class MILpooling(nn.Module):
                     self.model_attention_global_img = GatedAttention(self.L_global, 50, self.K)
                     self.model_attention_fusion_img = GatedAttention(self.L_fusion, self.D, self.K)
                 elif self.attention=='breastwise':
-                    self.model_attention_local_perbreast = GatedAttention(self.L_local, self.D, self.K)
-                    self.model_attention_global_perbreast = GatedAttention(self.L_global, 50, self.K)
-                    self.model_attention_fusion_perbreast = GatedAttention(self.L_fusion, self.D, self.K)
-                    self.model_attention_local_both = GatedAttention(self.L_local, self.D, self.K)
-                    self.model_attention_global_both = GatedAttention(self.L_global, 50, self.K)
-                    self.model_attention_fusion_both = GatedAttention(self.L_fusion, self.D, self.K)
-          
+                    self.model_attention_local_img = GatedAttention(self.L_local, self.D, self.K)
+                    self.model_attention_global_img = GatedAttention(self.L_global, 50, self.K)
+                    self.model_attention_fusion_img = GatedAttention(self.L_fusion, self.D, self.K)
+                    self.model_attention_local_side = GatedAttention(self.L_local, self.D, self.K)
+                    self.model_attention_global_side = GatedAttention(self.L_global, 50, self.K)
+                    self.model_attention_fusion_side = GatedAttention(self.L_fusion, self.D, self.K)
+            
+            self.classifier_local = nn.Linear(self.L_local, config_params['gmic_parameters']["num_classes"], bias=False)
+            self.classifier_fusion = nn.Linear(self.L_fusion, config_params['gmic_parameters']["num_classes"])
+
         else:
             if self.milpooling=='isatt' or self.milpooling=='esatt': 
                 if self.attention=='imagewise':
                     self.model_attention_img = Attention(self.L, self.D, self.K)
                 elif self.attention=='breastwise':
-                    self.model_attention_perbreast = Attention(self.L, self.D, self.K)
-                    self.model_attention_both = Attention(self.L, self.D, self.K)
+                    self.model_attention_img = Attention(self.L, self.D, self.K)
+                    self.model_attention_side = Attention(self.L, self.D, self.K)
                 self.classifier = nn.Linear(self.L*self.K, self.numclasses)
             
             elif self.milpooling=='isgatt' or self.milpooling=='esgatt':
                 if self.attention=='imagewise':
                     self.model_attention_img = GatedAttention(self.L, self.D, self.K)
                 elif self.attention=='breastwise':
-                    self.model_attention_perbreast = GatedAttention(self.L, self.D, self.K)
-                    self.model_attention_both = GatedAttention(self.L, self.D, self.K)
+                    self.model_attention_img = GatedAttention(self.L, self.D, self.K)
+                    self.model_attention_side = GatedAttention(self.L, self.D, self.K)
                 self.classifier = nn.Linear(self.L*self.K, self.numclasses)
             
             elif self.milpooling=='ismean' or self.milpooling=='esmean' or self.milpooling=='ismax' or self.milpooling=='esmax':
@@ -259,18 +316,18 @@ class MILpooling(nn.Module):
             if self.attention=='breastwise':
                 if both_breast:
                     if featuretype == 'local':
-                        A, H = self.model_attention_local_both(h)
+                        A, H = self.model_attention_local_side(h)
                     elif featuretype == 'global':
-                        A, H = self.model_attention_global_both(h)
+                        A, H = self.model_attention_global_side(h)
                     elif featuretype == 'fusion':
-                        A, H = self.model_attention_fusion_both(h)
+                        A, H = self.model_attention_fusion_side(h)
                 else:
                     if featuretype == 'local':
-                        A, H = self.model_attention_local_perbreast(h)
+                        A, H = self.model_attention_local_img(h)
                     elif featuretype == 'global':
-                        A, H = self.model_attention_global_perbreast(h)
+                        A, H = self.model_attention_global_img(h)
                     elif featuretype == 'fusion':
-                        A, H = self.model_attention_fusion_perbreast(h)
+                        A, H = self.model_attention_fusion_img(h)
                     
             elif self.attention=='imagewise':
                 if featuretype == 'local':
@@ -282,9 +339,9 @@ class MILpooling(nn.Module):
         else:
             if self.attention=='breastwise':
                 if both_breast:
-                    A, H = self.model_attention_both(h)
+                    A, H = self.model_attention_side(h)
                 else:
-                    A, H = self.model_attention_perbreast(h)
+                    A, H = self.model_attention_img(h)
             elif self.attention=='imagewise':
                 A, H = self.model_attention_img(h) #Nx4xL
         return A, H
@@ -350,11 +407,13 @@ class MILpooling(nn.Module):
     
     def ESAtt(self, featuretype, h_all, views_names):
         if len(views_names)>1:
+            #print('h_all:', h_all.shape)
             A, M = self.attention_weights(featuretype, h_all) #Nx2xL
             M = self.MILPooling_attention(A, M) #NxL
         else:
             #h_all = h_all.squeeze(1)
             M = self.reshape(h_all) #Nx2xL
+        #print('M:', M.shape)
         M = self.classifier_score(featuretype, M) #Nx2x1
         M = M.view(M.shape[0],-1)
         return M
@@ -365,47 +424,74 @@ class MILpooling(nn.Module):
         M = M.view(M.shape[0],-1)
         return M
 
-    def ESAtt_breastwise(self, featuretype, views_names, h_view):
-        if 'LMLO' in views_names and 'LCC' in views_names:
-            h_view['LCC'] = torch.unsqueeze(h_view['LCC'],1) #shape=Nx1x256 #shape=Nx1x2x25x25
-            h_view['LMLO'] = torch.unsqueeze(h_view['LMLO'],1) #shape=Nx1x2x25x25
-            h_left = torch.cat((h_view['LCC'],h_view['LMLO']),dim=1) #shape=Nx2(views)x2(b/m)x25x25
-            A_left, h_left= self.attention_weights(featuretype, h_left) #Nx256, #Nx2xL
-            h_left = self.MILPooling_attention(A_left, h_left)
+    def ESAtt_breastwise(self, featuretype, h_view, views_names):
+        if featuretype == 'local':
+            idx_h = 0
+        elif featuretype == 'global':
+            idx_h = 1
+        elif featuretype == 'fusion':
+            idx_h = 2
 
-        elif 'LCC' in views_names:
-            h_left = h_view['LCC'] #shape=Nx256
-            h_left = self.reshape(h_left) #shape=Nx2xL
+        views_names_left=np.array([view for view in views_names if view[0]=='L'])
+        views_names_left=views_names_left.tolist()
+        
+        views_names_right=np.array([view for view in views_names if view[0]=='R'])
+        views_names_right=views_names_right.tolist()
+
+        if len(views_names_left)>1:
+            for counter, view in enumerate(views_names_left):
+                if counter == 0:
+                    h_left = h_view[view][idx_h].unsqueeze(1)
+                else:
+                    h_left = torch.cat((h_left, h_view[view][idx_h].unsqueeze(1)), dim=1)   
             
-        elif 'LMLO' in views_names:
-            h_left = h_view['LMLO']
-            h_left = self.reshape(h_left) #shape=Nx2xL
+            if self.dependency=='selfatt':
+                if featuretype == 'local':
+                    h_left = self.model_selfattention_local_img(h_left)
+                elif featuretype == 'global':
+                    h_left = self.model_selfattention_global_img(h_left)
+                    h_left = torch.sigmoid(h_left)
+                elif featuretype == 'fusion':
+                    h_left = self.model_selfattention_fusion_img(h_left)
+            
+            A_left, h_left= self.attention_weights(featuretype, h_left) #Nx2xL
+            h_left = self.MILPooling_attention(A_left, h_left) #Nx1xL
+
+        elif len(views_names_left)==1:
+            h_left = h_view[views_names_left[0]][idx_h].unsqueeze(1) #Nx1xL
+            h_left = self.reshape(h_left)
             
         else:
             h_left = torch.zeros(size=(0,1),device=self.device)
         
-        if 'RMLO' in views_names and 'RCC' in views_names:
-            h_view['RCC'] = torch.unsqueeze(h_view['RCC'],1) #shape=Nx1x2x25x25
-            h_view['RMLO'] = torch.unsqueeze(h_view['RMLO'],1) #shape=Nx1x2x25x25
-            h_right = torch.cat((h_view['RCC'],h_view['RMLO']),dim=1) #shape=Nx2x2x25x25
-            A_right, h_right = self.attention_weights(featuretype, h_right) #shape=Nx2xL
-            h_right = self.MILPooling_attention(A_right, h_right)
+        if len(views_names_right)>1:
+            for counter1, view in enumerate(views_names_right):
+                if counter1 == 0:
+                    h_right = h_view[view][idx_h].unsqueeze(1)
+                else:
+                    h_right = torch.cat((h_right, h_view[view][idx_h].unsqueeze(1)), dim=1)   
             
-        elif 'RCC' in views_names:
-            h_right = h_view['RCC']
-            h_right = self.reshape(h_right) #shape=Nx2xL
+            if self.dependency == 'selfatt':
+                if featuretype == 'local':
+                    h_right = self.model_selfattention_local_img(h_right)
+                elif featuretype == 'global':
+                    h_right = self.model_selfattention_global_img(h_right)
+                    h_right = torch.sigmoid(h_right)
+                elif featuretype == 'fusion':
+                    h_right = self.model_selfattention_fusion_img(h_right)
             
-        elif 'RMLO' in views_names:
-            h_right = h_view['RMLO']
+            A_right, h_right = self.attention_weights(featuretype, h_right) #Nx2xL
+            h_right = self.MILPooling_attention(A_right, h_right) #Nx1xL
+
+        elif len(views_names_right)==1:
+            h_right = h_view[views_names_right[0]][idx_h].unsqueeze(1) #Nx1xL
             h_right = self.reshape(h_right) #shape=Nx2xL
             
         else:
             h_right = torch.zeros(size=(0,1),device=self.device)
         
         if len(h_left) and len(h_right):
-            h_left = torch.unsqueeze(h_left,1) #shape=Nx1x256 #shape=Nx1x2xL
-            h_right = torch.unsqueeze(h_right,1) #shape=Nx1x256 #shape=Nx1x2xL
-            h_both = torch.cat((h_left,h_right),dim=1) #shape=Nx2x2xL
+            h_both = torch.cat((h_left, h_right),dim=1) #shape=Nx2xL
             A_final, h_final = self.attention_weights(featuretype, h_both, both_breast=True) #shape=Nx2xL
             h_final = self.MILPooling_attention(A_final, h_final)
         
@@ -462,6 +548,7 @@ class MILmodel(nn.Module):
         self.milpooling = config_params['milpooling']
         self.attention = config_params['attention']
         self.featureextractormodel = config_params['femodel']
+        self.dependency = config_params['dependency']
 
         self.four_view_resnet = FourViewResNet(config_params)
         self.milpooling_block = MILpooling(config_params)
@@ -491,6 +578,15 @@ class MILmodel(nn.Module):
             h_all = [h_all_local, h_all_global, h_all_fusion, all_saliency_map]
         
         return h_all
+    
+    def capture_saliency_map(self, h, views_names):
+        for counter, view in enumerate(views_names):
+            if self.featureextractormodel == 'gmic_resnet18':
+                if counter==0:
+                    all_saliency_map = h[view][3].unsqueeze(1)
+                else:
+                    all_saliency_map = torch.cat((all_saliency_map, h[view][3].unsqueeze(1)), dim=1)
+        return all_saliency_map
 
     def forward(self, x, views_names):
         print(views_names)
@@ -498,7 +594,18 @@ class MILmodel(nn.Module):
 
         if self.attention=='imagewise':
             h_all = self.capture_views(h, views_names)
-            
+            all_saliency_map = h_all[3]
+
+            if self.dependency == 'selfatt':
+                if len(views_names)>1:
+                    #print('before:',h_all[0].shape)
+                    h_all[0] = self.milpooling_block.model_selfattention_local_img(h_all[0])
+                    #print('after:', h_all[0].shape)
+                    h_all[1] = self.milpooling_block.model_selfattention_global_img(h_all[1])
+                    h_all[1] = torch.sigmoid(h_all[1])
+                    h_all[2] = self.milpooling_block.model_selfattention_fusion_img(h_all[2])
+
+
             if self.milpooling=='isatt' or self.milpooling=='isgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
                     y_local = self.milpooling_block.ISAtt('local', h_all[0], views_names)
@@ -525,6 +632,7 @@ class MILmodel(nn.Module):
             
             elif self.milpooling=='esatt' or self.milpooling=='esgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
+                    #print('h_all in esatt:', h_all[0].shape)
                     y_local = self.milpooling_block.ESAtt('local', h_all[0], views_names)
                     y_global = self.milpooling_block.ESAtt('global', h_all[1], views_names)
                     y_fusion = self.milpooling_block.ESAtt('fusion', h_all[2], views_names)
@@ -550,14 +658,15 @@ class MILmodel(nn.Module):
         elif self.attention=='breastwise':
             if self.milpooling=='esatt' or self.milpooling=='esgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
-                    y_local = self.milpooling_block.ESAtt_breastwise('local', h_all[0], views_names)
-                    y_global = self.milpooling_block.ESAtt_breastwise('global', h_all[1], views_names)
-                    y_fusion = self.milpooling_block.ESAtt_breastwise('fusion', h_all[2], views_names)
+                    y_local = self.milpooling_block.ESAtt_breastwise('local', h, views_names)
+                    y_global = self.milpooling_block.ESAtt_breastwise('global', h, views_names)
+                    y_fusion = self.milpooling_block.ESAtt_breastwise('fusion', h, views_names)
+                    all_saliency_map = self.capture_saliency_map(h, views_names)
                 else:
-                    y_pred = self.milpooling_block.ESAtt_breastwise(None, h_all, views_names)
+                    y_pred = self.milpooling_block.ESAtt_breastwise(None, h, views_names)
         
         if self.featureextractormodel == 'gmic_resnet18':
-            return y_local, y_global, y_fusion, h_all[3]
+            return y_local, y_global, y_fusion, all_saliency_map
         else:
             return y_pred
 

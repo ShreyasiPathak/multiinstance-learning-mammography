@@ -20,6 +20,11 @@ def dataset_based_changes(config_params):
         sanity_check_mil_col = 'ShortPath'
         sanity_check_sil_col = 'CasePath'
     
+    elif config_params['dataset'] == 'vindr':
+        views_col = 'Views'
+        sanity_check_mil_col = 'ShortPath'
+        sanity_check_sil_col = 'CasePath'
+
     return views_col, sanity_check_mil_col, sanity_check_sil_col
 
 
@@ -33,12 +38,22 @@ def input_file_creation(config_params):
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
             df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
-            df_modality['Groundtruth'] = df_modality['ImageLabel']
+            if config_params['labeltouse'] == 'imagelabel':
+                df_modality['Groundtruth'] = df_modality['ImageLabel']
+            elif config_params['labeltouse'] == 'caselabel':
+                df_modality['Groundtruth'] = df_modality['CaseLabel']
             
-            df_train = df_modality[df_modality['ImageName'].str.contains('Training')]
-            if config_params['usevalidation']:
-                df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
-            df_test = df_modality[df_modality['ImageName'].str.contains('Test')]
+            if config_params['dataset'] == 'cbis-ddsm':
+                df_train = df_modality[df_modality['ImageName'].str.contains('Training')]
+                if config_params['usevalidation']:
+                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                df_test = df_modality[df_modality['ImageName'].str.contains('Test')]
+           
+            elif config_params['dataset'] == 'vindr':
+                df_train = df_modality[df_modality['Split'] == 'training']
+                if config_params['usevalidation']:
+                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                df_test = df_modality[df_modality['Split'] == 'test']
 
         elif config_params['datasplit'] == 'casebasedtestset':
             csv_file_path = config_params['MIL_csvfilepath']
@@ -124,34 +139,59 @@ def input_file_creation(config_params):
             print("check end!")
 
     elif config_params['learningtype'] == 'MIL':
-        csv_file_path = config_params['MIL_csvfilepath']
-        df_modality = pd.read_csv(csv_file_path,sep=';')
-        print("df modality shape:",df_modality.shape)
-        df_modality = df_modality[~df_modality['Views'].isnull()]
-        print("df modality no null view:",df_modality.shape)
-        df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
+        if config_params['datasplit'] == 'casebasedtestset':
+            csv_file_path = config_params['MIL_csvfilepath']
+            df_modality = pd.read_csv(csv_file_path,sep=';')
+            print("df modality shape:",df_modality.shape)
+            df_modality = df_modality[~df_modality['Views'].isnull()]
+            print("df modality no null view:",df_modality.shape)
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
 
-        #bags with exactly 4 views
-        df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
-        print("df_modality 4 views:", df_modality1.shape)
-        df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'])
-        total_instances = df_modality1.shape[0]
+            #bags with exactly 4 views
+            df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
+            print("df_modality 4 views:", df_modality1.shape)
+            df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'])
+            total_instances = df_modality1.shape[0]
+            
+            #bags with views!=4
+            if config_params['viewsinclusion'] == 'all':
+                df_modality2 = df_modality[df_modality[views_col].str.split('+').str.len()!=4.0]
+                print("df_modality views<4:",df_modality2.shape)
+                df_train = pd.concat([df_train, df_modality2[df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist())]])
+                df_val = pd.concat([df_val, df_modality2[df_modality2['Patient_Id'].isin(df_val['Patient_Id'].unique().tolist())]])
+                df_test = pd.concat([df_test, df_modality2[df_modality2['Patient_Id'].isin(df_test['Patient_Id'].unique().tolist())]])
+                df_modality2 = df_modality2[~df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist()+df_val['Patient_Id'].unique().tolist()+df_test['Patient_Id'].unique().tolist())]
+                df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'])
+            
+                df_train = pd.concat([df_train,df_train1])
+                df_val = pd.concat([df_val,df_val1])
+                df_test = pd.concat([df_test,df_test1])
+                total_instances = df_modality.shape[0]
         
-        #bags with views!=4
-        if config_params['viewsinclusion'] == 'all':
-            df_modality2 = df_modality[df_modality[views_col].str.split('+').str.len()!=4.0]
-            print("df_modality views<4:",df_modality2.shape)
-            df_train = pd.concat([df_train, df_modality2[df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist())]])
-            df_val = pd.concat([df_val, df_modality2[df_modality2['Patient_Id'].isin(df_val['Patient_Id'].unique().tolist())]])
-            df_test = pd.concat([df_test, df_modality2[df_modality2['Patient_Id'].isin(df_test['Patient_Id'].unique().tolist())]])
-            df_modality2 = df_modality2[~df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist()+df_val['Patient_Id'].unique().tolist()+df_test['Patient_Id'].unique().tolist())]
-            df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'])
-        
-            df_train = pd.concat([df_train,df_train1])
-            df_val = pd.concat([df_val,df_val1])
-            df_test = pd.concat([df_test,df_test1])
-            total_instances = df_modality.shape[0]
-    
+        elif config_params['datasplit'] == 'officialtestset':
+            csv_file_path = config_params['MIL_csvfilepath']
+            df_modality = pd.read_csv(csv_file_path, sep=';')
+            print("df modality shape:",df_modality.shape)
+            df_modality = df_modality[~df_modality['Views'].isnull()]
+            print("df modality no null view:",df_modality.shape)
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
+
+            #bags with all views
+            if config_params['viewsinclusion'] == 'all':
+                df_train = df_modality[df_modality['Split'] == 'training']
+                if config_params['usevalidation']:
+                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                df_test = df_modality[df_modality['Split'] == 'test']
+                total_instances = df_modality.shape[0]
+            
+            elif config_params['viewsinclusion'] == 'standard':
+                df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
+                df_train = df_modality1[df_modality1['Split'] == 'training']
+                if config_params['usevalidation']:
+                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                df_test = df_modality1[df_modality1['Split'] == 'test']
+                total_instances = df_modality1.shape[0]
+
     print("Total instances:", total_instances)
     
     #df_train = df_train[100:130]

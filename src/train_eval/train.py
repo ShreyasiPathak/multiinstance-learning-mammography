@@ -79,7 +79,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
     if os.path.isfile(path_to_model):
         model, optimizer, start_epoch = utils.load_model(model, optimizer, path_to_model)
         if config_params['patienceepochs']:
-            modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, best_score=-4.0123425437336495, patience=config_params['patienceepochs'], verbose=True)
+            modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, best_score=config_params['valloss_resumetrain'], patience=config_params['patienceepochs'], verbose=True)
         print("start epoch:",start_epoch)
         print("lr:",optimizer.param_groups[0]['lr'])
     else:
@@ -125,7 +125,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 train_labels = train_labels.float()
                 pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
                 loss = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, class_weights_train, test_bool=False)
-            
+
             else:
                 if config_params['learningtype'] == 'SIL':
                     output_batch = model(train_batch)
@@ -365,13 +365,13 @@ if __name__=='__main__':
             train(config_params, model, path_to_model, dataloader_train, dataloader_val, batches_train, batches_val, df_train)
         else:
             train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
-
+        
         #hyperparameter results
-        if config_params['usevalidation']:
+        '''if config_params['usevalidation']:
             per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val)
             hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepochs'], config_params['batchsize']] + per_model_metrics_val
             evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
-
+        '''
         #test the model
         per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test)
         evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')

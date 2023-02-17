@@ -27,23 +27,20 @@ def select_lr_scheduler(config_params, optimizer):
 
 def optimizer_fn(config_params, model):
     if config_params['viewsinclusion']=='all':
-        both_attention_group=[]
         image_attention_group=[]
-        perbreast_attention_group=[]
+        side_attention_group=[]
         rest_group=[]
         param_list=[]
         
         for name,param in model.named_parameters():
             if param.requires_grad:
-                if 'both.attention' in name:
-                    both_attention_group.append(param)
-                elif 'perbreast.attention' in name:
-                    perbreast_attention_group.append(param)
-                elif 'img.attention' in name:
+                if 'img.attention' in name:
                     image_attention_group.append(param)
+                elif 'side.attention' in name:
+                    side_attention_group.append(param)
                 else:
                     rest_group.append(param)
-        for item in [both_attention_group, perbreast_attention_group, image_attention_group, rest_group]:
+        for item in [image_attention_group, side_attention_group, rest_group]:
             if item:
                 param_list.append({"params":item, "lr":config_params['lr'], "momentum":0.9, "weight_decay": config_params['wtdecay']})
         if config_params['optimizer']=='Adam':

@@ -28,7 +28,7 @@ class EarlyStopping:
         self.val_loss_min = np.Inf
         self.conf_mat_train_best=np.zeros((2,2))
         self.conf_mat_test_best=np.zeros((2,2))
-        self.path_to_model=path_to_model
+        self.path_to_model = path_to_model
 
     def __call__(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, val_auc):
 
@@ -36,18 +36,19 @@ class EarlyStopping:
 
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss)
+            self.save_checkpoint(val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, self.path_to_model)
         elif score < self.best_score:
             self.counter += 1
+            self.save_checkpoint(val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, self.path_to_model.split('.')[0]+'_interim'+'.tar')
             print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
             self.best_score = score
-            self.save_checkpoint(val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss)
+            self.save_checkpoint(val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, self.path_to_model)
             self.counter = 0
 
-    def save_checkpoint(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss):
+    def save_checkpoint(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, path_to_model):
         '''Saves model when validation loss decrease.'''
         if self.verbose:
             print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
@@ -57,7 +58,7 @@ class EarlyStopping:
             'optim_dict' : optimizer.state_dict(),
             'loss': train_loss
         }
-        torch.save(state,self.path_to_model)
+        torch.save(state, path_to_model)
         #torch.save(model.state_dict(), 'checkpoint.pt')
         self.conf_mat_train_best=conf_mat_train1
         self.conf_mat_test_best=conf_mat_test1
