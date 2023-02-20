@@ -110,13 +110,18 @@ def test(config_params, model, dataloader_test, batches_test, df_test):
     #val_stats_viewwise = evaluation.calc_viewwise_metric(count_dic_viewwise, conf_mat_viewwise)
     #sheet4 = evaluation.results_viewwise(sheet4, val_stats_viewwise)
     
-    #sheet3.append(['case-level prediction'])
-    #sheet3 = evaluation.case_label_from_SIL(df_test, test_labels_all.cpu().numpy(), test_pred_all.cpu().numpy(), sheet3)
-    
-    return per_model_metrics, conf_mat_test
+    if config_params['learningtype'] == 'SIL':
+        per_model_metrics_caselevel = evaluation.case_label_from_SIL(config_params, df_test, test_labels_all.cpu().numpy(), test_pred_all.cpu().numpy())
+        return per_model_metrics, conf_mat_test, per_model_metrics_caselevel
+    else:
+        return per_model_metrics, conf_mat_test
 
 def run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test):
     path_to_trained_model = path_to_model
     model1 = load_model_for_testing(model, path_to_trained_model)
-    per_model_metrics_test, conf_mat_test = test(config_params, model1, dataloader_test, batches_test,  df_test)
-    return per_model_metrics_test, conf_mat_test
+    if config_params['learningtype'] == 'SIL':
+        per_model_metrics_test, conf_mat_test, per_model_metrics_caselevel = test(config_params, model1, dataloader_test, batches_test,  df_test)
+        return per_model_metrics_test, conf_mat_test, per_model_metrics_caselevel
+    else:
+        per_model_metrics_test, conf_mat_test = test(config_params, model1, dataloader_test, batches_test,  df_test)
+        return per_model_metrics_test, conf_mat_test

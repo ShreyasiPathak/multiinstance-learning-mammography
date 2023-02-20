@@ -54,6 +54,7 @@ def input_file_creation(config_params):
                 if config_params['usevalidation']:
                     df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
                 df_test = df_modality[df_modality['Split'] == 'test']
+            total_instances = df_modality.shape[0]
 
         elif config_params['datasplit'] == 'casebasedtestset':
             csv_file_path = config_params['MIL_csvfilepath']
@@ -102,7 +103,7 @@ def input_file_creation(config_params):
                 df_instances['Groundtruth'] = df_instances['CaseLabel']
                 if config_params['dataset'] == 'zgt':
                     if config_params['bitdepth'] == 12:
-                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath'].str.strip('png')+'.npy'
+                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath'].str.rstrip('.png')+'.npy'
                     elif config_params['bitdepth'] == 8:
                         df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath']
                 else:
@@ -121,9 +122,16 @@ def input_file_creation(config_params):
                 df_test = df_instances[df_instances['CasePath'].isin(df_test['ShortPath'].tolist())]
 
             print('check continues...')
-            train_check1 = df_train[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
-            val_check1 = df_val[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
-            test_check1 = df_test[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
+            if config_params['dataset'] == 'cbis-ddsm':
+                train_check1 = df_train[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
+                val_check1 = df_val[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
+                test_check1 = df_test[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
+            
+            elif config_params['dataset'] == 'zgt':
+                train_check1 = df_train[sanity_check_sil_col].unique().tolist()
+                val_check1 = df_val[sanity_check_sil_col].unique().tolist()
+                test_check1 = df_test[sanity_check_sil_col].unique().tolist()
+
             train_check1.sort()
             val_check1.sort()
             test_check1.sort()
@@ -137,6 +145,7 @@ def input_file_creation(config_params):
             if test_check==test_check1:
                 print('identical test')
             print("check end!")
+            total_instances = df_modality.shape[0]
 
     elif config_params['learningtype'] == 'MIL':
         if config_params['datasplit'] == 'casebasedtestset':

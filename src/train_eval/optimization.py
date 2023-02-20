@@ -26,7 +26,7 @@ def select_lr_scheduler(config_params, optimizer):
     return scheduler
 
 def optimizer_fn(config_params, model):
-    if config_params['viewsinclusion']=='all':
+    if config_params['viewsinclusion']=='all' and config_params['learningtype']=='MIL':
         image_attention_group=[]
         side_attention_group=[]
         rest_group=[]
@@ -48,7 +48,7 @@ def optimizer_fn(config_params, model):
         elif config_params['optimizer']=='SGD':
             optimizer = optim.SGD(param_list)
     
-    elif config_params['viewsinclusion'] == 'standard':
+    else: #config_params['viewsinclusion'] == 'standard':
         classifier=[]
         rest_group=[]
         if config_params['optimizer']=='Adam':

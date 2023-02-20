@@ -373,9 +373,15 @@ if __name__=='__main__':
             evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
         '''
         #test the model
-        per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test)
-        evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
-        evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
+        if config_params['learningtype'] == 'SIL':
+            per_model_metrics_test, conf_mat_test, per_model_metrics_test_case = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test)
+            evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+            evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
+            evaluation.write_results_xlsx(per_model_metrics_test_case, path_to_results_xlsx, 'test_results')
+        else:
+            per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test)
+            evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+            evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
 
         '''except Exception as err:
             print("Exception encountered:",err)

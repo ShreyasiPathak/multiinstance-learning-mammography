@@ -123,25 +123,38 @@ def results_viewwise(sheet4, val_stats_viewwise):
     sheet4.append(row_sheet4)
     return sheet4
 
-def case_label_from_SIL(df_test, test_labels_all, test_pred_all, sheet3):
+def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all):
     dic_true={}
     dic_pred={}
     idx=0
     
+    if config_params['dataset'] == 'zgt':
+        image_col = 'CasePath'
+    elif config_params['dataset'] == 'cbis-ddsm':
+        image_col = 'ImageName'
+    elif config_params['dataset'] == 'vindr':
+        image_col = 'StudyInstanceUID'
+
+
     test_pred_all = test_pred_all.reshape(-1)
-    print(test_labels_all)
-    print(test_pred_all)
+    #print(test_labels_all)
+    #print(test_pred_all)
     for idx in df_test.index:
-        dic_key = '_'.join(df_test.loc[idx,'ImageName'].split('_')[:3])
-        dic_true[dic_key] = max(dic_true.get(dic_key,0),test_labels_all[idx])
-        dic_pred[dic_key] = max(dic_pred.get(dic_key,0),test_pred_all[idx])
+        if config_params['dataset'] == 'cbis-ddsm':
+            dic_key = '_'.join(df_test.loc[idx, image_col].split('_')[:3])
+        elif config_params['dataset'] == 'zgt':
+            dic_key = df_test.loc[idx, image_col].split('/')[-1]
+        else:
+            dic_key = df_test.loc[idx, image_col]
+        dic_true[dic_key] = max(dic_true.get(dic_key,0), test_labels_all[idx])
+        dic_pred[dic_key] = max(dic_pred.get(dic_key,0), test_pred_all[idx])
     case_labels_true = np.array(list(dic_true.values()))
     case_labels_pred = np.array(list(dic_pred.values()))
 
-    print(case_labels_true)
-    print(case_labels_pred)
+    #print(case_labels_true)
+    #print(case_labels_pred)
     metrics_case_labels = utils.performance_metrics(None, case_labels_true, case_labels_pred, None)
-    print(metrics_case_labels)
-    sheet3.append(['Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC'])
-    sheet3.append(metrics_case_labels)
-    return sheet3
+    print("case label:", metrics_case_labels)
+    #sheet3.append(['Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    #sheet3.append(metrics_case_labels)
+    return metrics_case_labels

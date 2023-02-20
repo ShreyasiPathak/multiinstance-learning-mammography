@@ -61,7 +61,7 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
     batch_sampler_test = None
     shuffle = True
     sampler1 = None
-    if config_params['viewsinclusion'] == 'all':
+    if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL':
         if config_params['classimbalance']=='oversampling':
             sampler = utils.CustomGroupbyViewWeightedRandomSampler(df_train)
             sampler_val = utils.CustomGroupbyViewRandomSampler(df_val, 'val')
@@ -80,7 +80,7 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
         batch_size1=1
         shuffle=False
     
-    elif config_params['viewsinclusion'] == 'standard': 
+    else:# config_params['viewsinclusion'] == 'standard': 
         if config_params['classimbalance'] == 'oversampling':
             sampler1 = utils.CustomWeightedRandomSampler(df_train)
             shuffle = False

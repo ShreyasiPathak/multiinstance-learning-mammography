@@ -522,9 +522,7 @@ def collect_cases(config_params, data):
                 img = collect_images(config_params, data1)
                 if series[0] in views_allowed and series[0] not in views_saved:
                     if config_params['dataset']  == 'zgt' and config_params['viewsinclusion']=='all' and config_params['bitdepth']==12: #solve this in future
-                        print(img.shape, flush=True)
-                        c, h, w = img.shape
-                        if h>500 and w>500:
+                        if series[0] in data['Views'].split('+'):
                             views_saved.append(series[0])
                             image_read_list.append(img)
                             breast_side.append(series[0][0])
@@ -532,10 +530,11 @@ def collect_cases(config_params, data):
                         views_saved.append(series[0])
                         image_read_list.append(img)
                         breast_side.append(series[0][0])
-        if "+".join(sorted(data['Views'].split('+')))!="+".join(views_saved):
-            print(data['FullPath'], flush=True)
-            print(data['Views'], flush=True)
-            print(views_saved, flush=True)
+        
+        #if "+".join(sorted(data['Views'].split('+')))!="+".join(views_saved):
+        #    print("Not matched:", data['FullPath'], flush=True)
+        #    print(data['Views'], flush=True)
+        #    print(views_saved, flush=True)
     return image_read_list, breast_side, views_saved
 
 def collect_images(config_params, data):
