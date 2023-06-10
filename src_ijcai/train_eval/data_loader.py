@@ -63,7 +63,7 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
     sampler1 = None
     if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL':
         if config_params['classimbalance']=='oversampling':
-            sampler = utils.CustomGroupbyViewWeightedRandomSampler(config_params, df_train)
+            sampler = utils.CustomGroupbyViewWeightedRandomSampler(df_train)
             sampler_val = utils.CustomGroupbyViewRandomSampler(df_val, 'val')
         else:
             sampler = utils.CustomGroupbyViewFullRandomSampler(view_group_indices_train, config_params['batchsize'], 'train')
@@ -82,7 +82,7 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
     
     else:# config_params['viewsinclusion'] == 'standard': 
         if config_params['classimbalance'] == 'oversampling':
-            sampler1 = utils.CustomWeightedRandomSampler(config_params, df_train)
+            sampler1 = utils.CustomWeightedRandomSampler(df_train)
             shuffle = False
         batch_size1 = config_params['batchsize']
     
@@ -97,7 +97,7 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
         dataset_gen_test = utils.BreastCancerDataset_generator(config_params, df_test, preprocess_val)
         dataloader_test = DataLoader(dataset_gen_test, batch_size=batch_size1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=utils.MyCollate, worker_init_fn=seed_worker, generator=g, batch_sampler=batch_sampler_test)
     
-    elif config_params['learningtype'] == 'MIL' or config_params['learningtype'] == 'MV':
+    elif config_params['learningtype'] == 'MIL':
         dataset_gen_train = utils.BreastCancerDataset_generator(config_params, df_train, preprocess_train)
         dataloader_train = DataLoader(dataset_gen_train, batch_size=batch_size1, shuffle=shuffle, num_workers=config_params['numworkers'], collate_fn=utils.MyCollateBreastWise, worker_init_fn=seed_worker, generator=g, sampler=sampler1, batch_sampler=batch_sampler)    
         

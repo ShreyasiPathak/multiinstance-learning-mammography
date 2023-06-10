@@ -225,12 +225,10 @@ class ResNetV1(nn.Module):
 
     def forward(self, x):
         # first sequence
-        #print("in gmic module:", x.get_device(), x.shape)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        #print("in gmic module done:", x.get_device(), x.shape)
 
         # residual sequences
         for i in range(self.num_layers):
@@ -278,7 +276,7 @@ class PostProcessingStandard(nn.Module):
 
     def forward(self, x_out):
         out = self.gn_conv_last(x_out)
-        return out, torch.sigmoid(out)
+        return torch.sigmoid(out)
 
 
 class GlobalNetwork(AbstractMILUnit):
@@ -312,11 +310,12 @@ class GlobalNetwork(AbstractMILUnit):
     def forward(self, x):
         # retrieve results from downsampling network at all 4 levels
         last_feature_map = self.downsampling_branch.forward(x)
-        #print("last feature map:",last_feature_map.shape) #N, 512, 92, 60
+        #print("last feature map:",last_feature_map.shape)
         # feed into postprocessing network
-        cam_before_sigmoid, cam = self.postprocess_module.forward(last_feature_map)
+        cam = self.postprocess_module.forward(last_feature_map)
         #print("cam:", cam.shape)
-        return last_feature_map, cam, cam_before_sigmoid
+        return last_feature_map, cam
+
 
 class TopTPercentAggregationFunction(AbstractMILUnit):
     """
@@ -328,12 +327,11 @@ class TopTPercentAggregationFunction(AbstractMILUnit):
         self.percent_t = parameters["percent_t"]
         self.parent_module = parent_module
 
-    def forward(self, cam, cam_before_sig):
+    def forward(self, cam):
         batch_size, num_class, H, W = cam.size()
         cam_flatten = cam.view(batch_size, num_class, -1)
         top_t = int(round(W*H*self.percent_t))
-        selected_area, topt_index = cam_flatten.topk(top_t, dim=2) #topt_index: N, 1, 110
-        #selectedarea_before_sig = torch.gather(cam_before_sig.view(batch_size, num_class, -1), 2, topt_index) #N, 1, 5520
+        selected_area = cam_flatten.topk(top_t, dim=2)[0]
         return selected_area, selected_area.mean(dim=2)
 
 
@@ -412,8 +410,6 @@ class LocalNetwork(AbstractMILUnit):
         """
         # forward propagte using ResNet
         res = self.parent_module.dn_resnet(x_crop.expand(-1, 3, -1 , -1))
-        #print("in local network:", x_crop.shape)
-        #res = self.parent_module.dn_resnet(x_crop)
         # global average pooling
         res = res.mean(dim=2).mean(dim=2)
         return res

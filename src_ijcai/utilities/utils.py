@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Mar 28 22:20:38 2021
 
-@author: spathak
-"""
 
 from torch.utils.data import Dataset, DataLoader, Sampler
 import torchvision.transforms.functional as TF
@@ -37,21 +33,13 @@ import re
 
 from data_loading import augmentations, loading
 
-#groundtruth_dic = {'benign':0,'malignant':1}
-#inverted_groundtruth_dic = {0:'benign',1:'malignant'}
+groundtruth_dic = {'benign':0,'malignant':1}
+inverted_groundtruth_dic = {0:'benign',1:'malignant'}
 #views_allowed = ['LCC','LMLO','RCC','RMLO']
 views_allowed_gmic = ['L-CC','L-MLO','R-CC','R-MLO']
 cbis_view_dic = {'LEFT_CC': 'LCC', 'RIGHT_CC': 'RCC', 'LEFT_MLO': 'LMLO', 'RIGHT_MLO': 'RMLO'}
 #optimizer_params_dic={'.mlo':0,'.cc':1,'_left.attention':2,'_right.attention':3,'_both.attention':4}
 #cluster_data_path_prefix='/local/work/spathak'
-
-class ROIRotateTransform:
-    def __init__(self, angles):
-        self.angles = angles
-
-    def __call__(self, x):
-        angle = np.random.choice(self.angles).item()
-        return TF.rotate(x, angle)
 
 class MyCrop:
     """Randomly crop the sides."""
@@ -164,9 +152,9 @@ class BreastCancerDataset_generator(Dataset):
                 img=img.unsqueeze(0).unsqueeze(1)
             elif self.config_params['channel'] == 3:
                 img=img.unsqueeze(0)
-            return idx, img, torch.tensor(self.config_params['groundtruthdic'][data['Groundtruth']]), data['Views']
+            return idx, img, torch.tensor(groundtruth_dic[data['Groundtruth']]), data['Views']
         
-        elif self.config_params['learningtype'] == 'MIL' or self.config_params['learningtype'] == 'MV':
+        elif self.config_params['learningtype'] == 'MIL':
             flag = 0
             data = self.df.loc[idx] #loc is valid because I have reset_index in df_train, df_val and df_test. random data sampling returns index, but as our index is same as the relative position, bpth iloc and loc should work. I am using loc because of groupby view data sampler. 
             image_list, _, views_saved = collect_cases(self.config_params, data)
@@ -183,12 +171,11 @@ class BreastCancerDataset_generator(Dataset):
                 else:
                     image_tensor = torch.cat((image_tensor,img),0)
             #print(image_tensor.shape)
-            return idx, image_tensor, torch.tensor(self.config_params['groundtruthdic'][data['Groundtruth']]), views_saved 
+            return idx, image_tensor, torch.tensor(groundtruth_dic[data['Groundtruth']]), views_saved 
 
 class CustomWeightedRandomSampler(Sampler):
-    def __init__(self, config_params, df_train):
+    def __init__(self, df_train):
         self.df = df_train
-        self.config_params = config_params
     
     def __iter__(self):
         len_instances=self.df.shape[0]
@@ -199,7 +186,7 @@ class CustomWeightedRandomSampler(Sampler):
         class_count[1] = class_count.pop('malignant')
         max_class = max(class_count.items(), key=operator.itemgetter(1))
         diff_count_class=max_class[1]-np.array([class_count[0],class_count[1]])
-        labels=self.df['Groundtruth'].replace(self.config_params['groundtruthdic'])
+        labels=self.df['Groundtruth'].replace(groundtruth_dic)
         #print(np.append(OriginalIndices,np.random.choice(np.where(labels==0)[0],5),axis=0))
         for i in range(0,2):
             if i!=max_class[0]:
@@ -369,10 +356,9 @@ class CustomGroupbyViewFullRandomBatchSampler(Sampler):
         return length
 
 class CustomGroupbyViewWeightedRandomSampler(Sampler):
-    def __init__(self, config_params, df_train):
+    def __init__(self, df_train):
         self.df = df_train
         self.view_group = list(self.df.groupby(by=['Views']))
-        self.config_params = config_params
     
     def __iter__(self):
         len_instances=self.df.shape[0]
@@ -383,7 +369,7 @@ class CustomGroupbyViewWeightedRandomSampler(Sampler):
         class_count[1] = class_count.pop('malignant')
         max_class = max(class_count.items(), key=operator.itemgetter(1))
         diff_count_class=max_class[1]-np.array([class_count[0],class_count[1]])
-        labels=self.df['Groundtruth'].replace(self.config_params['groundtruthdic'])
+        labels=self.df['Groundtruth'].replace(groundtruth_dic)
         for i in range(0,2):
             if i!=max_class[0]:
                 repeater=int(diff_count_class[i]/class_count[i])
@@ -422,7 +408,7 @@ class CustomGroupbyViewWeightedRandomSampler(Sampler):
         class_count[1] = class_count.pop('malignant')
         max_class = max(class_count.items(), key=operator.itemgetter(1))
         diff_count_class=max_class[1]-np.array([class_count[0],class_count[1]])
-        labels=self.df['Groundtruth'].replace(self.config_params['groundtruthdic'])
+        labels=self.df['Groundtruth'].replace(groundtruth_dic)
         #print(np.append(OriginalIndices,np.random.choice(np.where(labels==0)[0],5),axis=0))
         for i in range(0,2):
             if i!=max_class[0]:
@@ -489,7 +475,7 @@ def view_extraction(series_list, views_allowed):
     return series_list
 
 def selecting_data(config_params, img_list):
-    if config_params['dataset'] == 'zgt':
+    if config_params['dataset'] == 'mgm':
         if config_params['bitdepth'] == 8:
             img_list = list(filter(lambda x: re.search('_processed.png$', x), img_list))
         elif config_params['bitdepth'] == 12:
@@ -497,7 +483,7 @@ def selecting_data(config_params, img_list):
     return img_list
 
 def views_allowed_dataset(config_params):
-    if config_params['dataset'] == 'zgt' and config_params['viewsinclusion'] == 'all':
+    if config_params['dataset'] == 'mgm' and config_params['viewsinclusion'] == 'all':
         views_allowed=['LCC', 'LLM', 'LML', 'LMLO', 'LXCCL', 'RCC', 'RLM', 'RML', 'RMLO', 'RXCCL']
     else:
         views_allowed = ['LCC','LMLO','RCC','RMLO']
@@ -534,7 +520,7 @@ def collect_cases(config_params, data):
                 data1['Views'] = series[0]
                 img = collect_images(config_params, data1)
                 if series[0] in views_allowed and series[0] not in views_saved:
-                    if config_params['dataset']  == 'zgt' and config_params['viewsinclusion']=='all' and config_params['bitdepth']==12: #solve this in future
+                    if config_params['dataset']  == 'mgm' and config_params['viewsinclusion']=='all' and config_params['bitdepth']==12: #solve this in future
                         if series[0] in data['Views'].split('+'):
                             views_saved.append(series[0])
                             image_read_list.append(img)
@@ -567,29 +553,15 @@ def collect_images_8bits(config_params, data, views_allowed):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
-        img = cv2.imread(img_path, 0)
-        img_dtype = img.dtype
-        if config_params['dataset']=='cbis-ddsm':
-            clahe_create = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            img = clahe_create.apply(img)
-        img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB).astype(np.float32)
-        breast_side = data['Views'][0]
-        if img_dtype=='uint8':
-            img/=255
-        img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
-        '''
+        #img = cv2.imread(img_path).astype(np.float32)
+        #img/=255
         img = Image.open(img_path)
         img= img.convert('RGB')
         breast_side = data['Views'][0]
         #img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
-        ### added later; have not checked if it works for shu or kim et al
-        transformTen = transforms.ToTensor()
-        img = transformTen(img)
-        ### ends here ##
         if config_params['dataaug'] == 'kim':
             pad_longer_side = MyPaddingLongerSide(config_params['resize'])
             img = pad_longer_side(img, breast_side)
-        '''
         if config_params['flipimage']:
             hflip_img = MyHorizontalFlip()
             img = hflip_img(img, breast_side)
@@ -602,7 +574,6 @@ def collect_images_16bits(config_params, data, views_allowed):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
-        #print('img path:', img_path)
         img = cv2.imread(img_path,-1)
         img_dtype = img.dtype
         img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB).astype(np.float32)
@@ -730,15 +701,10 @@ def data_augmentation_train_shen_gmic(config_params, mean, std_dev):
         if config_params['resize']:
             preprocess_train_list.append(transforms.Resize((config_params['resize'][0], config_params['resize'][1])))
     
-    if config_params['papertoreproduce'] == 'wu20':
-        noise_std = 0.01
-    else:
-        noise_std = 0.005
-
     preprocess_train_list=preprocess_train_list+[
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomAffine(degrees=(15),translate=(0.1,0.1),scale=(0.8,1.6),shear=(25)),
-        AddGaussianNoise(mean=0, std=noise_std)
+        AddGaussianNoise(mean=0, std=0.005)
         ]
     
     if config_params['datascaling']:
@@ -1145,11 +1111,11 @@ def stratified_class_count(df):
     class_count=df.groupby(by=['Groundtruth']).size()
     return class_count
 
-def class_distribution_weightedloss(config_params, df):
-    df_groundtruth=df['Groundtruth'].map(config_params['groundtruthdic'])
-    class_weight=utils.class_weight.compute_class_weight(class_weight = 'balanced', classes = np.array(config_params['classes']), y = df_groundtruth)
-    print("class count:", dict(Counter(df_groundtruth)))
-    print("class weight:", class_weight)
+def class_distribution_weightedloss(df):
+    df_groundtruth=df['Groundtruth'].map(groundtruth_dic)
+    class_weight=utils.class_weight.compute_class_weight(class_weight = 'balanced', classes = np.array([0,1]), y = df_groundtruth)
+    print(dict(Counter(df_groundtruth)))
+    print(class_weight)
     return torch.tensor(class_weight,dtype=torch.float32)
 
 def class_distribution_poswt(df):
@@ -1297,6 +1263,33 @@ def calculate_dataset_mean_stddev(df, resize, transform):
     std_dataset = torch.mean(torch.tensor(stds))
     return mean_dataset, std_dataset
 
+def performance_metrics(conf_mat,y_true,y_pred,y_prob):
+    prec=metrics.precision_score(y_true,y_pred,pos_label=1)
+    rec=metrics.recall_score(y_true,y_pred) #sensitivity, TPR
+    if conf_mat is None:
+        spec=np.sum((y_true==0) & (y_pred==0))/np.sum(y_true==0)
+        print(y_true)
+        print(y_pred)
+        print(np.sum((y_true==0) & (y_pred==0)))
+        print(np.sum(y_true==0))
+        print(spec)
+        
+    else:
+        spec=conf_mat[0,0]/np.sum(conf_mat[0,:]) #TNR
+    
+    f1=metrics.f1_score(y_true,y_pred)
+    f1macro=metrics.f1_score(y_true,y_pred,average='macro')
+    f1wtmacro=metrics.f1_score(y_true,y_pred,average='weighted')
+    acc=metrics.accuracy_score(y_true,y_pred)
+    bal_acc=(rec+spec)/2
+    cohen_kappa=metrics.cohen_kappa_score(y_true,y_pred)
+    try:
+        auc=metrics.roc_auc_score(y_true,y_prob)
+    except:
+        auc=0.0
+    each_model_metrics=[prec,rec,spec,f1,f1macro,f1wtmacro,acc,bal_acc,cohen_kappa,auc]
+    return each_model_metrics
+
 def save_model(model, optimizer, epoch, loss, path_to_model):
     state = {
         'epoch': epoch+1,
@@ -1312,6 +1305,91 @@ def load_model(model, optimizer, path):
     optimizer.load_state_dict(checkpoint['optim_dict'])
     epoch = checkpoint['epoch']
     return model, optimizer, epoch
+
+def results_subgroups(df,true_labels,pred_labels,y_prob, sheet):
+    breastden_A=df[df['BreastDensity']==1].index
+    breastden_B=df[df['BreastDensity']==2].index
+    breastden_C=df[df['BreastDensity']==3].index
+    breastden_D=df[df['BreastDensity']==4].index
+    
+    breastden_A_metrics = performance_metrics(None,true_labels[breastden_A],pred_labels[breastden_A],y_prob[breastden_A])
+    breastden_B_metrics = performance_metrics(None,true_labels[breastden_B],pred_labels[breastden_B],y_prob[breastden_B])
+    breastden_C_metrics = performance_metrics(None,true_labels[breastden_C],pred_labels[breastden_C],y_prob[breastden_C])
+    breastden_D_metrics = performance_metrics(None,true_labels[breastden_D],pred_labels[breastden_D],y_prob[breastden_D])
+    
+    sheet.append(['breast density A'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_A_metrics)
+    sheet.append(['breast density B'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_B_metrics)
+    sheet.append(['breast density C'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_C_metrics)
+    sheet.append(['breast density D'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(breastden_D_metrics)
+    
+    birads_0=df[df['AssessmentMax']==0].index
+    birads_1=df[df['AssessmentMax']==1].index
+    birads_2=df[df['AssessmentMax']==2].index
+    birads_3=df[df['AssessmentMax']==3].index
+    birads_4=df[df['AssessmentMax']==4].index
+    birads_5=df[df['AssessmentMax']==5].index
+    birads_6=df[df['AssessmentMax']==6].index
+    
+    birads_0_metrics = performance_metrics(None,true_labels[birads_0],pred_labels[birads_0],y_prob[birads_0])
+    if not birads_1.empty:
+        try:
+            print('I am in try!')
+            birads_1_metrics = performance_metrics(None,true_labels[birads_1],pred_labels[birads_1],y_prob[birads_1])
+        except:
+            print('I am in except')
+            pass
+    birads_2_metrics = performance_metrics(None,true_labels[birads_2],pred_labels[birads_2],y_prob[birads_2])
+    birads_3_metrics = performance_metrics(None,true_labels[birads_3],pred_labels[birads_3],y_prob[birads_3])
+    birads_4_metrics = performance_metrics(None,true_labels[birads_4],pred_labels[birads_4],y_prob[birads_4])
+    birads_5_metrics = performance_metrics(None,true_labels[birads_5],pred_labels[birads_5],y_prob[birads_5])
+    if not birads_6.empty:
+        try:
+            print('I am in try!')
+            birads_6_metrics = performance_metrics(None,true_labels[birads_6],pred_labels[birads_6],y_prob[birads_6])
+        except:
+            print('I am in except')
+            pass
+    
+    sheet.append(['birads 0'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_0_metrics)
+    if not birads_1.empty:
+        try:
+            sheet.append(['birads 1'])
+            sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+            sheet.append(birads_1_metrics)
+        except:
+            pass
+    
+    sheet.append(['birads 2'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_2_metrics)
+    sheet.append(['birads 3'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_3_metrics)
+    sheet.append(['birads 4'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_4_metrics)
+    sheet.append(['birads 5'])
+    sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+    sheet.append(birads_5_metrics)
+    if not birads_6.empty:
+        try:
+            sheet.append(['birads 6'])
+            sheet.append(['Precision','Recall','Specificity','F1','Acc','Bal_Acc','Cohens Kappa','AUC'])
+            sheet.append(birads_6_metrics)
+        except:
+            pass
+    
+    return sheet
 
 def confusion_matrix_norm_func(conf_mat,fig_name,class_name):
     #class_name=['W','N1','N2','N3','REM']
@@ -1457,6 +1535,7 @@ def plot(imgs, orig_img, with_orig=True, row_title=None, **imshow_kwargs):
     plt.show()
     plt.tight_layout()
 
+
 ##------------------------------------------------------------- functions taken from gmic --------------------------------#
 def standard_normalize_single_image(image):
     """
@@ -1519,7 +1598,6 @@ def crop_pytorch(original_img_pytorch, crop_shape, crop_position, out,
     :return: (N, K, h, w) PyTorch Tensor
     """
     # retrieve inputs
-    #_, H, W = original_img_pytorch.shape
     H, W = original_img_pytorch.shape
     crop_x, crop_y = crop_position
     x_delta, y_delta = crop_shape
@@ -1551,7 +1629,6 @@ def crop_pytorch(original_img_pytorch, crop_shape, crop_position, out,
     real_y_delta = max_y - min_y
     origin_x = crop_shape[0] - real_x_delta
     origin_y = crop_shape[1] - real_y_delta
-    #out[:, origin_x:, origin_y:] = original_img_pytorch[:, min_x:max_x, min_y:max_y]
     out[origin_x:, origin_y:] = original_img_pytorch[min_x:max_x, min_y:max_y]
 
 def get_max_window(input_image, window_shape, pooling_logic="avg"):
@@ -1608,8 +1685,7 @@ def generate_mask_uplft(input_image, window_shape, upper_left_points, gpu_number
     mask_x = Variable(torch.arange(0, H).view(-1, 1).repeat(N, C, 1, W))
     mask_y = Variable(torch.arange(0, W).view(1, -1).repeat(N, C, H, 1))
     if gpu_number is not None:
-        #device = torch.device("cuda:{}".format(gpu_number))
-        device = torch.device(gpu_number)
+        device = torch.device("cuda:{}".format(gpu_number))
         mask_x = mask_x.cuda().to(device)
         mask_y = mask_y.cuda().to(device)
     x_gt_min = mask_x.float() >= mask_x_min.unsqueeze(-1).unsqueeze(-1).float()
@@ -1624,75 +1700,5 @@ def generate_mask_uplft(input_image, window_shape, upper_left_points, gpu_number
     selected = selected_x * selected_y
     mask = 1 - selected.float()
     return mask
-
-def crop(original_img, crop_shape, crop_position, method="center",
-         in_place=False, background_val="min"):
-    """
-    Function that take a crop on the original image.
-    This function must staty in numpy since original_img should not be loaded into Pytorch during the network time.
-    original_img is large and would consume lots of GPU memory.
-    :param original_img:
-    :param crop_shape:
-    :param crop_position:
-    :param method: supported in ["center", "upper_left"]
-    :param in_place: if in_place, the effective pixels in the crop will be flagged (1.0) in the original_img
-    """
-    # retrieve inputs
-    I, J = original_img.shape
-    crop_x, crop_y = crop_position
-    x_delta, y_delta = crop_shape
-
-    # locate the four corners
-    if method == "center":
-        min_x = int(np.round(crop_x - x_delta / 2))
-        max_x = int(np.round(crop_x + x_delta / 2))
-        min_y = int(np.round(crop_y - y_delta / 2))
-        max_y = int(np.round(crop_y + y_delta/2))
-    elif method == "upper_left":
-        min_x = int(np.round(crop_x))
-        max_x = int(np.round(crop_x + x_delta))
-        min_y = int(np.round(crop_y))
-        max_y = int(np.round(crop_y + y_delta))
-
-    # make sure that the crops are in range
-    min_x = make_sure_in_range(min_x, 0, I)
-    max_x = make_sure_in_range(max_x, 0, I)
-    min_y = make_sure_in_range(min_y, 0, J)
-    max_y = make_sure_in_range(max_y, 0, J)
-
-    # if in_place, flag the original inputs
-    if in_place:
-        original_img[min_x:max_x, min_y:max_y] = 1.0
-    # else make the new matrix
-    else:
-        # somehow background is normalized to this number
-        if background_val == "min":
-            output = np.ones(crop_shape) * np.min(original_img)
-        else:
-            output = np.ones(crop_shape) * background_val
-        real_x_delta = max_x - min_x
-        real_y_delta = max_y - min_y
-        origin_x = crop_shape[0] - real_x_delta
-        origin_y = crop_shape[1] - real_y_delta
-        output[origin_x:, origin_y:] = original_img[min_x:max_x, min_y:max_y]
-        return output
-
-def get_crop_mask(loc, crop_shape, image_shape, method, indicator=True):
-    """
-    Function that generates the mask
-    :param loc:
-    :param crop_shape:
-    :param image_shape:
-    :param method:
-    :return:
-    """
-    crop_map = np.zeros(image_shape)
-    for crop_loc in loc:
-        # this is the indicator for point of crop
-        if indicator:
-            crop_map[int(crop_loc[0]), int(crop_loc[1])] = 999.0
-        # fill in 1.0 in the cropped regions
-        crop(crop_map, crop_shape, crop_loc, method=method, in_place=True)
-    return crop_map
 
 #---------------------------------------------- end of functions taken from gmic repository ----------------#

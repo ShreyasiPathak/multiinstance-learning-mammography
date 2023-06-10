@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Sep 22 16:43:24 2021
 
-@author: PathakS
-"""
 
 import os
 import sys
@@ -58,8 +54,7 @@ def output_files(config_file, config_params, num_config_start, num_config_end):
         sheet1.append(header)
         sheet2 = wb.create_sheet('confmat_train_val_test')
         sheet3 = wb.create_sheet('test_results') 
-        #sheet3.append(['Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC'])
-        sheet3.append(['Loss','PrecisionBin','PrecisionMicro','PrecisionMacro','RecallBin','RecallMicro','RecallMacro','F1Bin','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
+        sheet3.append(['Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC'])
         sheet4 = wb.create_sheet('metrics_view_wise')
     
     # set file path
@@ -71,7 +66,7 @@ def output_files(config_file, config_params, num_config_start, num_config_end):
             wb1=Workbook()
             sheet5 = wb1.active
             sheet5.title = "hyperparam_results"
-            header = ['config_file','lr','wtdecay','sm_reg_param','trainingscheme','optimizer','patienceepoch','batchsize','Loss','PrecisionBin','PrecisionMicro','PrecisionMacro','RecallBin','RecallMicro','RecallMacro','F1Bin','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC']
+            header = ['config_file','lr','wtdecay','sm_reg_param','trainingscheme','optimizer','patienceepoch','batchsize','Loss','Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC']
             sheet5.append(header)
         wb1.save(path_to_hyperparam_search)
 

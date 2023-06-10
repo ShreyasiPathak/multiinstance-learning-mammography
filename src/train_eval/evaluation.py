@@ -1,8 +1,13 @@
+import torch
 import itertools
 import numpy as np
 import openpyxl as op
+import pandas as pd
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn import metrics
 
 from utilities import utils
 
@@ -67,63 +72,87 @@ def write_results_xlsx(results, path_to_results, sheetname):
     sheet.append(results)
     wb.save(path_to_results)
 
-def write_results_xlsx_confmat(results, path_to_results, sheetname):
+def write_results_xlsx_confmat(config_params, results, path_to_results, sheetname):
     wb = op.load_workbook(path_to_results)
-    sheet = wb[sheetname]
-    sheet.append([0,1])
+    if sheetname not in wb.sheetnames:
+        sheet = wb.create_sheet(sheetname)
+    else:
+        sheet = wb[sheetname]
+    
+    sheet.append(config_params['classes'])
     for row in results.tolist():
         sheet.append(row)
     wb.save(path_to_results)
 
-def save_viewwise_count(views_names, test_batch, conf_mat_batch, batch_test_no):
-    if batch_test_no==0:
-        count_dic_viewwise={}
-        conf_mat_viewwise={}
-        
+def calc_viewwise_metric(views_names, views_standard, count_dic_viewwise, test_labels, test_pred, output_test):
     views_names_key="+".join(views_names)
-    #loss_dic_viewwise[views_names_key]=loss_dic_viewwise.get(views_names_key,0)+test_labels.size()[0]*loss1
-    count_dic_viewwise[views_names_key]=count_dic_viewwise.get(views_names_key,0)+test_batch.shape[0]
-    conf_mat_viewwise[views_names_key]=conf_mat_viewwise.get(views_names_key,np.zeros((2,2)))+conf_mat_batch
-    count_dic_viewwise[str(len(views_names))]=count_dic_viewwise.get(str(len(views_names)),0)+test_batch.shape[0]
-    conf_mat_viewwise[str(len(views_names))]=conf_mat_viewwise.get(str(len(views_names)),np.zeros((2,2)))+conf_mat_batch
-    return count_dic_viewwise, conf_mat_viewwise
+    views_count_key=str(len(views_names))
 
-def calc_viewwise_metric(count_dic_viewwise, conf_mat_viewwise):
-    val_stats_viewwise={}
-    for key in count_dic_viewwise.keys():
-        if count_dic_viewwise[key]:
-            count_key=count_dic_viewwise[key]
+    flag=0
+    for view in views_names:
+        if view not in views_standard:
+            flag=1
+    if flag==0:
+        views_count_4std_key='views_std'
+        if views_count_4std_key in count_dic_viewwise.keys():
+            count_dic_viewwise[views_count_4std_key]['true'] = np.append(count_dic_viewwise[views_count_4std_key]['true'],test_labels.cpu().numpy())
+            count_dic_viewwise[views_count_4std_key]['pred'] = np.append(count_dic_viewwise[views_count_4std_key]['pred'],test_pred.cpu().numpy())
+            count_dic_viewwise[views_count_4std_key]['prob'] = np.append(count_dic_viewwise[views_count_4std_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
         else:
-            count_key=0
-        if sum(conf_mat_viewwise[key][1,:]):
-            tpr=float(conf_mat_viewwise[key][1,1])/sum(conf_mat_viewwise[key][1,:])
+            count_dic_viewwise[views_count_4std_key]={}
+            count_dic_viewwise[views_count_4std_key]['true'] = test_labels.cpu().numpy()
+            count_dic_viewwise[views_count_4std_key]['pred'] = test_pred.cpu().numpy()
+            count_dic_viewwise[views_count_4std_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    elif flag==1:
+        views_count_4nonstd_key='views_nonstd'
+        if views_count_4nonstd_key in count_dic_viewwise.keys():
+            count_dic_viewwise[views_count_4nonstd_key]['true'] = np.append(count_dic_viewwise[views_count_4nonstd_key]['true'],test_labels.cpu().numpy())
+            count_dic_viewwise[views_count_4nonstd_key]['pred'] = np.append(count_dic_viewwise[views_count_4nonstd_key]['pred'],test_pred.cpu().numpy())
+            count_dic_viewwise[views_count_4nonstd_key]['prob'] = np.append(count_dic_viewwise[views_count_4nonstd_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
         else:
-            tpr=0.0
-        if sum(conf_mat_viewwise[key][0,:]):
-            tnr=float(conf_mat_viewwise[key][0,0])/sum(conf_mat_viewwise[key][0,:])
-        else:
-            tnr=0.0
-        if np.sum(conf_mat_viewwise[key]):
-            acc=float(conf_mat_viewwise[key][0,0]+conf_mat_viewwise[key][1,1])/np.sum(conf_mat_viewwise[key])
-        else:
-            acc=0.0
-        val_stats_viewwise[key]=[count_key,tpr,tnr,acc]
-        #print(key, 'benign', sum(conf_mat_viewwise[key][0,:]))
-        #print(key, 'malignant', sum(conf_mat_viewwise[key][1,:]))
-    return val_stats_viewwise
+            count_dic_viewwise[views_count_4nonstd_key]={}
+            count_dic_viewwise[views_count_4nonstd_key]['true'] = test_labels.cpu().numpy()
+            count_dic_viewwise[views_count_4nonstd_key]['pred'] = test_pred.cpu().numpy()
+            count_dic_viewwise[views_count_4nonstd_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    if views_names_key in count_dic_viewwise.keys():
+        count_dic_viewwise[views_names_key]['true'] = np.append(count_dic_viewwise[views_names_key]['true'],test_labels.cpu().numpy())
+        count_dic_viewwise[views_names_key]['pred'] = np.append(count_dic_viewwise[views_names_key]['pred'],test_pred.cpu().numpy())
+        count_dic_viewwise[views_names_key]['prob'] = np.append(count_dic_viewwise[views_names_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
+    else:
+        count_dic_viewwise[views_names_key]={}
+        count_dic_viewwise[views_names_key]['true'] = test_labels.cpu().numpy()
+        count_dic_viewwise[views_names_key]['pred'] = test_pred.cpu().numpy()
+        count_dic_viewwise[views_names_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    
+    if views_count_key in count_dic_viewwise.keys():
+        count_dic_viewwise[views_count_key]['true'] = np.append(count_dic_viewwise[views_count_key]['true'],test_labels.cpu().numpy())
+        count_dic_viewwise[views_count_key]['pred'] = np.append(count_dic_viewwise[views_count_key]['pred'],test_pred.cpu().numpy())
+        count_dic_viewwise[views_count_key]['prob'] = np.append(count_dic_viewwise[views_count_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
+    else:
+        count_dic_viewwise[views_count_key]={}
+        count_dic_viewwise[views_count_key]['true'] = test_labels.cpu().numpy()
+        count_dic_viewwise[views_count_key]['pred'] = test_pred.cpu().numpy()
+        count_dic_viewwise[views_count_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    return count_dic_viewwise
 
-def results_viewwise(sheet4, val_stats_viewwise):
-    header=[]
-    if val_stats_viewwise!={}:
-        for key in val_stats_viewwise.keys():
-            header=header+[key,'','','']
-        sheet4.append(header)
-        sheet4.append(['Count','Recall','Specificity','Acc']*len(list(val_stats_viewwise.keys())))
-    row_sheet4=list(itertools.chain(*val_stats_viewwise.values()))
-    sheet4.append(row_sheet4)
-    return sheet4
+def write_results_viewwise(config_params, path_to_results_xlsx, sheetname, count_dic_viewwise):
+    wb = op.load_workbook(path_to_results_xlsx)
+    if count_dic_viewwise!={}:
+        for key in count_dic_viewwise.keys():
+            print(key)
+            per_model_metrics = aggregate_performance_metrics(config_params, count_dic_viewwise[key]['true'],count_dic_viewwise[key]['pred'],count_dic_viewwise[key]['prob'])
+            header = [key]
+            sheet = wb[sheetname]
+            sheet.append(header)
+            sheet.append(['Count','PrecisionMicro','PrecisionMacro','RecallMicro','RecallMacro','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
+            sheet.append([len(count_dic_viewwise[key]['true'])]+per_model_metrics)
+    wb.save(path_to_results_xlsx)
 
-def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all):
+def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all, path_to_results):
     dic_true={}
     dic_pred={}
     idx=0
@@ -153,8 +182,166 @@ def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all):
 
     #print(case_labels_true)
     #print(case_labels_pred)
-    metrics_case_labels = utils.performance_metrics(None, case_labels_true, case_labels_pred, None)
+    metrics_case_labels = aggregate_performance_metrics(config_params, case_labels_true, case_labels_pred, None)
     print("case label:", metrics_case_labels)
-    #sheet3.append(['Precision','Recall','Specificity','F1','F1macro','F1wtmacro','Acc','Bal_Acc','Cohens Kappa','AUC'])
-    #sheet3.append(metrics_case_labels)
-    return metrics_case_labels
+    write_results_xlsx(metrics_case_labels, path_to_results, 'test_results')
+
+def data_specific_changes(config_params, df):
+    if config_params['dataset'] == 'zgt':
+        df = df.rename(columns = {'BreastDensity_standarized':'BreastDensity', 'BIRADS_combined_pathwaybased':'BIRADS'})
+        df['BIRADS'] = df['BIRADS'].map({'1':'1', '2':'2', '3':'3', '4a':'4', '4b':'4', '4c':'4', '5':'5', '6':'6'})
+    elif config_params['dataset'] == 'cbis-ddsm':
+        df = df.rename(columns = {'AssessmentMax': 'BIRADS'})
+        df['BreastDensity'] = df['BreastDensity'].map({1:'A', 2:'B', 3:'C', 4:'D'})
+    return df
+
+def results_breastdensity(config_params, df, true_labels, pred_labels, y_prob, path_to_results):
+    df = data_specific_changes(config_params, df)
+    
+    breastden_A=df[df['BreastDensity']=='A'].index
+    breastden_B=df[df['BreastDensity']=='B'].index
+    breastden_C=df[df['BreastDensity']=='C'].index
+    breastden_D=df[df['BreastDensity']=='D'].index
+    
+    breastdenA = aggregate_performance_metrics(config_params, true_labels[breastden_A], pred_labels[breastden_A], y_prob[breastden_A])
+    breastdenB = aggregate_performance_metrics(config_params, true_labels[breastden_B], pred_labels[breastden_B], y_prob[breastden_B])
+    breastdenC = aggregate_performance_metrics(config_params, true_labels[breastden_C], pred_labels[breastden_C], y_prob[breastden_C])
+    breastdenD = aggregate_performance_metrics(config_params, true_labels[breastden_D], pred_labels[breastden_D], y_prob[breastden_D])
+
+    results_all = [['Breast Density A'] + breastdenA, ['Breast Density B'] + breastdenB, ['Breast Density C'] + breastdenC, ['Breast Density D'] + breastdenD] 
+    write_results_subgroup(path_to_results, 'BreastDensity', results_all)
+
+def results_birads(config_params, df, true_labels, pred_labels, y_prob, path_to_results):
+    df = data_specific_changes(config_params, df)
+
+    if config_params['dataset'] == 'cbis-ddsm':
+        birads_0=df[df['BIRADS']==0].index
+        birads_1=df[df['BIRADS']==1].index
+        birads_2=df[df['BIRADS']==2].index
+        birads_3=df[df['BIRADS']==3].index
+        birads_4=df[df['BIRADS']==4].index
+        birads_5=df[df['BIRADS']==5].index
+        birads_6=df[df['BIRADS']==6].index
+    elif config_params['dataset'] == 'zgt':
+        birads_0=df[df['BIRADS']=='0'].index
+        birads_1=df[df['BIRADS']=='1'].index
+        birads_2=df[df['BIRADS']=='2'].index
+        birads_3=df[df['BIRADS']=='3'].index
+        birads_4=df[df['BIRADS']=='4'].index
+        birads_5=df[df['BIRADS']=='5'].index
+        birads_6=df[df['BIRADS']=='6'].index
+    
+    print(birads_0.shape)
+    print(birads_1.shape)
+    print(birads_2.shape)
+    print(birads_3.shape)
+    print(birads_4.shape)
+    print(birads_5.shape)
+    print(birads_6.shape)
+
+    try:
+        birads0_res = aggregate_performance_metrics(config_params, true_labels[birads_0],pred_labels[birads_0],y_prob[birads_0])
+    except:
+        birads0_res = []
+    try:
+        birads1_res = aggregate_performance_metrics(config_params, true_labels[birads_1],pred_labels[birads_1],y_prob[birads_1])
+    except:
+        birads1_res = []
+    try:
+        birads2_res = aggregate_performance_metrics(config_params, true_labels[birads_2],pred_labels[birads_2],y_prob[birads_2])
+    except:
+        birads2_res = []
+    try:
+        birads3_res = aggregate_performance_metrics(config_params, true_labels[birads_3],pred_labels[birads_3],y_prob[birads_3])
+    except:
+        birads3_res = []
+    try:
+        birads4_res = aggregate_performance_metrics(config_params, true_labels[birads_4],pred_labels[birads_4],y_prob[birads_4])
+    except:
+        birads4_res = []
+    try:
+        birads5_res = aggregate_performance_metrics(config_params, true_labels[birads_5],pred_labels[birads_5],y_prob[birads_5])
+    except:
+        birads5_res = []
+    try:
+        birads6_res = aggregate_performance_metrics(config_params, true_labels[birads_6],pred_labels[birads_6],y_prob[birads_6])
+    except:
+        birads6_res = []
+    
+    results_all = [['BIRADS 0'] + birads0_res, ['BIRADS 1'] + birads1_res, ['BIRADS 2'] + birads2_res, ['BIRADS 3'] + birads3_res, ['BIRADS 4'] + birads4_res, ['BIRADS 5'] + birads5_res, ['BIRADS 6'] + birads6_res] 
+    write_results_subgroup(path_to_results, 'BIRADS', results_all)
+
+def results_abnormality(config_params, df, true_labels, pred_labels, y_prob, path_to_results):
+    df = data_specific_changes(config_params, df)
+    
+    abnorm_mass = df[df['AbnormalityType']=='Mass'].index
+    abnorm_calc = df[df['AbnormalityType']=='Calc'].index
+    
+    abnorm_mass_res = aggregate_performance_metrics(config_params, true_labels[abnorm_mass], pred_labels[abnorm_mass], y_prob[abnorm_mass])
+    abnorm_calc_res = aggregate_performance_metrics(config_params, true_labels[abnorm_calc], pred_labels[abnorm_calc], y_prob[abnorm_calc])
+
+    results_all = [['Mass'] + abnorm_mass_res, ['Calcification'] + abnorm_calc_res] 
+    write_results_subgroup(path_to_results, 'Abnormality', results_all)
+
+def write_results_subgroup(path_to_results, sheetname, results_all):
+    wb = op.load_workbook(path_to_results)
+    if sheetname not in wb.sheetnames:
+        sheet = wb.create_sheet(sheetname)
+    else:
+        sheet = wb[sheetname]
+    sheet.append(['Group', 'PrecisionMicro','PrecisionMacro','RecallMicro','RecallMacro','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
+    for result in results_all:
+        sheet.append(result)
+    wb.save(path_to_results)
+
+def aggregate_performance_metrics(config_params, y_true, y_pred, y_prob): 
+    prec_bin = metrics.precision_score(y_true, y_pred, average = 'binary')
+    precmicro = metrics.precision_score(y_true, y_pred, average = 'micro')
+    precmacro = metrics.precision_score(y_true, y_pred, average = 'macro')
+    recall_bin = metrics.recall_score(y_true, y_pred, average = 'binary')
+    recallmicro = metrics.recall_score(y_true, y_pred, average = 'micro')
+    recallmacro = metrics.recall_score(y_true, y_pred, average = 'macro')
+    f1_bin = metrics.f1_score(y_true, y_pred, average = 'binary')
+    f1micro = metrics.f1_score(y_true, y_pred, average = 'micro')
+    f1macro = metrics.f1_score(y_true, y_pred, average='macro')
+    f1wtmacro=metrics.f1_score(y_true, y_pred, average='weighted')
+    acc = metrics.accuracy_score(y_true, y_pred)
+    cohen_kappa=metrics.cohen_kappa_score(y_true, y_pred)
+    try:
+        if len(config_params['classes']) > 2:
+            auc=metrics.roc_auc_score(y_true, y_prob, multi_class='ovo')
+        else:
+            auc=metrics.roc_auc_score(y_true,y_prob)
+    except:
+        auc=0.0
+    
+    each_model_metrics=[prec_bin, precmicro, precmacro, recall_bin, recallmicro, recallmacro, f1_bin, f1micro, f1macro, f1wtmacro, acc, cohen_kappa, auc]
+    return each_model_metrics
+
+def classspecific_performance_metrics(config_params, y_true, y_pred, y_prob, path_to_results, sheetname):
+    score_dict = classification_report(y_true, y_pred, labels=config_params['classes'], output_dict = True)
+    print(score_dict)
+    results_all = []
+    flag=0
+    for key in score_dict.keys():
+        if isinstance(score_dict[key], dict):
+            if flag == 0:
+                results_all.append(['class'] + list(score_dict[key].keys()))
+                flag = 1
+            results_all.append([key] + list(score_dict[key].values())) 
+        else:
+            results_all.append([key, score_dict[key]])
+    
+    print(results_all)
+    write_results_classspecific(path_to_results, sheetname, results_all)
+
+def write_results_classspecific(path_to_results, sheetname, results_all):
+    wb = op.load_workbook(path_to_results)
+    if sheetname not in wb.sheetnames:
+        sheet = wb.create_sheet(sheetname)
+    else:
+        sheet = wb[sheetname]
+    for result in results_all:
+        sheet.append(result)
+    wb.save(path_to_results)
+  

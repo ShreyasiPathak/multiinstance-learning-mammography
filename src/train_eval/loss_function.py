@@ -1,4 +1,5 @@
 import torch
+import itertools
 import torch.nn as nn
 from torch import linalg as LA
 import torch.nn.functional as F
@@ -9,7 +10,7 @@ def class_imbalance(config_params, df):
     if config_params['classimbalance'] == 'poswt':
         class_weights = utils.class_distribution_poswt(df).to(config_params['device'])
     elif config_params['classimbalance'] == 'wtcostfunc':
-        class_weights = utils.class_distribution_weightedloss(df).to(config_params['device'])
+        class_weights = utils.class_distribution_weightedloss(config_params, df).to(config_params['device'])
     else:
         class_weights = None
     return class_weights
@@ -58,26 +59,62 @@ def loss_fn_bce(config_params, class_weights, test_bool):
     return criterion
 
 def loss_fn_gmic_initialize(config_params, class_weights, test_bool):
-    if test_bool or not config_params['classimbalance']:
-        bcelogitloss = nn.BCEWithLogitsLoss()
-        bceloss = nn.BCELoss()
+    if config_params['activation'] == 'sigmoid':
+        if test_bool or not config_params['classimbalance']:
+            logitloss = nn.BCEWithLogitsLoss()
+            loss = nn.BCELoss()
+        
+        elif config_params['classimbalance'] == 'poswt':
+            logitloss = nn.BCEWithLogitsLoss(pos_weight=class_weights[0])
+            loss = nn.BCELoss()
     
-    elif config_params['classimbalance'] == 'poswt':
-        bcelogitloss = nn.BCEWithLogitsLoss(pos_weight=class_weights[0])
-        bceloss = nn.BCELoss()
+    elif config_params['activation'] == 'softmax':
+        if test_bool or not config_params['classimbalance']:
+            logitloss = nn.CrossEntropyLoss()
+            loss = nn.CrossEntropyLoss()
+        
+        elif config_params['classimbalance'] == 'wtcostfunc':
+            logitloss = nn.CrossEntropyLoss(class_weights)
+            loss = nn.NLLLoss(class_weights)
     
-    return bcelogitloss, bceloss
+    return logitloss, loss
 
-def loss_fn_gmic(config_params, bcelogitsloss, bceloss, y_local, y_global, y_fusion, saliency_map, y_true, class_weights, test_bool):
+def loss_fn_gmic(config_params, logitloss, loss, y_local, y_global, y_fusion, saliency_map, y_true, class_weights, y_patch, test_bool):
     if config_params['classimbalance'] == 'poswt' and not test_bool:
         weight_batch = torch.tensor([1,class_weights[0]]).to(config_params['device'])[y_true.long()]
-        bceloss.weight = weight_batch
-    local_network_loss = bcelogitsloss(y_local, y_true)
-    global_network_loss = bceloss(y_global, y_true)
-    fusion_network_loss = bcelogitsloss(y_fusion, y_true)
+        loss.weight = weight_batch
+    local_network_loss = logitloss(y_local, y_true)
+    #print(local_network_loss)
+    #print(y_global.dtype, y_true.dtype)
+    #torch.set_printoptions(precision=10)
+    #print(y_global, (y_global > 1.).any())
+    #print(y_true)
+    if config_params['activation'] == 'sigmoid': 
+        y_global = torch.clamp(y_global, 0, 1)
+        global_network_loss = loss(y_global, y_true)
+    
+    elif config_params['activation'] == 'softmax':
+        global_network_loss = logitloss(y_global, y_true)
+    #print(global_network_loss)
+    fusion_network_loss = logitloss(y_fusion, y_true)
+    #print(fusion_network_loss)
+    '''y_true_patch = list(map(lambda x: [1,0] if x else [0,0], y_true)) 
+    y_true_patch = torch.tensor(list(itertools.chain.from_iterable(y_true_patch))).to(config_params['device']).float()
+    #print("y_true_patch:", y_true_patch)
+    patch_loss = logitloss(y_patch, y_true_patch)
+    '''
     if config_params['learningtype'] == 'SIL':
         saliency_map_regularizer = torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1],-1), ord=1, dim=2))
     elif config_params['learningtype'] == 'MIL':
-        saliency_map_regularizer = torch.mean(torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1], -1), ord=1, dim=2), dim=1))
-    total_loss = local_network_loss + global_network_loss + fusion_network_loss + config_params['sm_reg_param']*saliency_map_regularizer
+        if config_params['numclasses'] == 3:
+            #print("saliency map:", saliency_map.shape) #N,4,3,92,60
+            saliency_map_regularizer = torch.mean(torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1], saliency_map.shape[2], -1), ord=1, dim=3), dim=1))
+        else:
+            saliency_map_regularizer = torch.mean(torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1], -1), ord=1, dim=2), dim=1))
+    #print("local_network_loss:", local_network_loss)
+    #print("global_network_loss:", global_network_loss)
+    #print("fusion_network_loss:", fusion_network_loss)
+    #print("saliency_map_regularizer:", config_params['sm_reg_param']*saliency_map_regularizer)
+    #print("patch_loss:", patch_loss)
+    total_loss = local_network_loss + global_network_loss + fusion_network_loss + config_params['sm_reg_param']*saliency_map_regularizer #+ patch_loss
     return total_loss

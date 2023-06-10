@@ -1,9 +1,5 @@
 import torch.optim as optim
 
-def cosineannealing(optimizer):
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=0)
-    return scheduler
-
 def lrdecay_scheduler_kim(optimizer):
     """Sets the learning rate to the initial LR decayed by 0.2 every 10 epochs. Add the paper reference here."""
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.2)
@@ -25,8 +21,6 @@ def select_lr_scheduler(config_params, optimizer):
         scheduler = lrdecay_scheduler_shu(optimizer)
     elif config_params['trainingmethod'] == 'lrdecaykim':
         scheduler = lrdecay_scheduler_kim(optimizer)
-    elif config_params['trainingmethod'] == 'cosineannealing':
-        scheduler = cosineannealing(optimizer)
     else:
         scheduler = None
     return scheduler

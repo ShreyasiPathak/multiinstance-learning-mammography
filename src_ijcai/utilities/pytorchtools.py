@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Mar 29 22:28:07 2021
-
-@author: spathak
-"""
 
 import numpy as np
 import torch
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, path_to_model, early_stopping_criteria = 'loss', best_score=None, patience=7, verbose=False):
+    def __init__(self, path_to_model, best_score=None, patience=7, verbose=False):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -29,14 +24,10 @@ class EarlyStopping:
         self.conf_mat_train_best=np.zeros((2,2))
         self.conf_mat_test_best=np.zeros((2,2))
         self.path_to_model = path_to_model
-        self.early_stopping_criteria = early_stopping_criteria
 
     def __call__(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, val_auc):
 
-        if self.early_stopping_criteria == 'loss':        
-            score = -val_loss
-        elif self.early_stopping_criteria == 'auc':
-            score = val_auc
+        score = -val_loss
 
         if self.best_score is None:
             self.best_score = score

@@ -11,13 +11,12 @@ def dataset_based_changes(config_params):
         sanity_check_mil_col = 'FolderName'
         sanity_check_sil_col = 'ImageName'
     
-    elif config_params['dataset'] == 'zgt':
+    elif config_params['dataset'] == 'mgm':
         if config_params['learningtype'] == 'SIL':
             views_col = 'Views_4'
         
-        elif config_params['learningtype'] == 'MIL' or config_params['learningtype'] == 'MV':
+        elif config_params['learningtype'] == 'MIL':
             views_col = 'Views_4'
-            
         sanity_check_mil_col = 'ShortPath'
         sanity_check_sil_col = 'CasePath'
     
@@ -102,11 +101,11 @@ def input_file_creation(config_params):
             elif config_params['labeltouse'] == 'caselabel':
                 df_instances = pd.read_csv(config_params['SIL_csvfilepath'], sep=';')
                 df_instances['Groundtruth'] = df_instances['CaseLabel']
-                if config_params['dataset'] == 'zgt':
+                if config_params['dataset'] == 'mgm':
                     if config_params['bitdepth'] == 12:
-                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+df_instances['ShortPath'].str.rstrip('.png')+'.npy'
+                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath'].str.rstrip('.png')+'.npy'
                     elif config_params['bitdepth'] == 8:
-                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+df_instances['ShortPath']
+                        df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath']
                 else:
                     df_instances['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_instances['ShortPath']
                 #df_instances=pd.read_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_caselabel_groundtruth.csv', sep=';')
@@ -117,7 +116,7 @@ def input_file_creation(config_params):
                 df_val = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_val['FolderName'].tolist())]
                 df_test = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_test['FolderName'].tolist())]
             
-            elif config_params['dataset'] == 'zgt':
+            elif config_params['dataset'] == 'mgm':
                 df_train = df_instances[df_instances['CasePath'].isin(df_train['ShortPath'].tolist())]
                 df_val = df_instances[df_instances['CasePath'].isin(df_val['ShortPath'].tolist())]
                 df_test = df_instances[df_instances['CasePath'].isin(df_test['ShortPath'].tolist())]
@@ -128,7 +127,7 @@ def input_file_creation(config_params):
                 val_check1 = df_val[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
                 test_check1 = df_test[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
             
-            elif config_params['dataset'] == 'zgt':
+            elif config_params['dataset'] == 'mgm':
                 train_check1 = df_train[sanity_check_sil_col].unique().tolist()
                 val_check1 = df_val[sanity_check_sil_col].unique().tolist()
                 test_check1 = df_test[sanity_check_sil_col].unique().tolist()
@@ -148,21 +147,14 @@ def input_file_creation(config_params):
             print("check end!")
             total_instances = df_modality.shape[0]
 
-    elif config_params['learningtype'] == 'MIL' or  config_params['learningtype'] == 'MV':
+    elif config_params['learningtype'] == 'MIL':
         if config_params['datasplit'] == 'casebasedtestset':
             csv_file_path = config_params['MIL_csvfilepath']
             df_modality = pd.read_csv(csv_file_path,sep=';')
             print("df modality shape:",df_modality.shape)
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
-            df_modality['FullPath'] = config_params['preprocessed_imagepath']+df_modality['ShortPath']
-            if config_params['numclasses']==3:
-                df_modality['Groundtruth'] = df_modality['Groundtruth_3class']
-            elif (config_params['numclasses']==1) or (config_params['numclasses']==2):
-                try:
-                    df_modality['Groundtruth'] = df_modality['Groundtruth_2class']
-                except:
-                    pass
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
 
             #bags with exactly 4 views
             df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
@@ -211,7 +203,7 @@ def input_file_creation(config_params):
 
     print("Total instances:", total_instances)
     
-    #df_train = df_train[100:140]
+    #df_train = df_train[100:130]
     #df_val = df_val[:20]
     #df_test = df_test[20:40]
 
@@ -229,8 +221,6 @@ def input_file_creation(config_params):
     test_instances = df_test.shape[0]
     print("Test:", utils.stratified_class_count(df_test)) 
     print("Test instances:", test_instances) 
-    #df_test.to_csv('./zgt_df_test_randseed8.csv', sep=';')
-    #input('halt')
             
     if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL':
         #group by view

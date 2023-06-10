@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Sep 22 16:43:24 2021
 
-@author: PathakS
-"""
 
 import re
 import os
@@ -15,7 +11,6 @@ import argparse
 import random
 
 import glob
-import torch.nn as nn
 import numpy as np
 import pandas as pd
 from sklearn import metrics
@@ -24,8 +19,8 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-from train_eval import test, optimization, loss_function, evaluation, data_loader, attention_wt_extraction, visualize_roi, featurevector_hook, imagelabel_attwt_match
-from models import sil_mil_model, wu_resnet
+from train_eval import test, optimization, loss_function, evaluation, data_loader, attention_wt_extraction
+from models import sil_mil_model
 from utilities import pytorchtools, utils
 from setup import read_config_file, read_input_file, output_files_setup
 
@@ -52,15 +47,10 @@ def model_initialization(config_params):
         model = sil_mil_model.SILmodel(config_params)
     elif config_params['learningtype'] == 'MIL':
         model = sil_mil_model.MILmodel(config_params)
-    elif config_params['learningtype'] == 'MV':
-        model = wu_resnet.SplitBreastModel(config_params)
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(name)
     #print(model)
-    if config_params['device']=='cuda':
-        #cuda_device_list=list(map(int, config_params['device'].split(':')[1].split(',')))
-        model = nn.DataParallel(model, device_ids = [0,1])
     model.to(torch.device(config_params['device']))
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total model parameters:", pytorch_total_params, flush=True)
@@ -69,7 +59,7 @@ def model_initialization(config_params):
 
 def model_checkpoint(config_params, path_to_model):
     if config_params['patienceepochs']:
-        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, early_stopping_criteria=config_params['early_stopping_criteria'], patience=config_params['patienceepochs'], verbose=True)
+        modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, patience=config_params['patienceepochs'], verbose=True)
     elif config_params['usevalidation']:
         modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model, verbose=True)
     return modelcheckpoint
@@ -85,7 +75,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
     if os.path.isfile(path_to_model):
         model, optimizer, start_epoch = utils.load_model(model, optimizer, path_to_model)
         if config_params['patienceepochs']:
-            modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, best_score=config_params['valloss_resumetrain'], early_stopping_criteria=config_params['early_stopping_criteria'], patience=config_params['patienceepochs'], verbose=True)
+            modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, best_score=config_params['valloss_resumetrain'], patience=config_params['patienceepochs'], verbose=True)
         print("start epoch:",start_epoch)
         print("lr:",optimizer.param_groups[0]['lr'])
     else:
@@ -103,10 +93,9 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         model.train()
         loss_train=0.0
         correct_train=0
-        conf_mat_train=np.zeros((config_params['numclasses'],config_params['numclasses']))
+        conf_mat_train=np.zeros((2,2))
         total_images_train=0
         batch_no=0
-        eval_mode = False
 
         if config_params['trainingmethod'] == 'multisteplr1':
             model = utils.layer_selection_for_training(model,epoch, config_params['trainingmethod'], epoch_step=5)
@@ -123,38 +112,25 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _ = model(train_batch, eval_mode) # compute model output, loss and total train loss over one epoch
-                    output_patch = None
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch) # compute model output, loss and total train loss over one epoch
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, output_patch = model(train_batch, views_names, eval_mode)
-                
-                #print("local shape:", output_batch_local.shape)
-                #print("global shape:", output_batch_global.shape)
-                #print("fusion shape:", output_batch_fusion.shape)
-                
-                if config_params['activation'] == 'sigmoid':
-                    output_batch_local = output_batch_local.view(-1)
-                    output_batch_global = output_batch_global.view(-1)
-                    output_batch_fusion = output_batch_fusion.view(-1)
-                    train_labels = train_labels.float()
-                    pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                
-                elif config_params['activation'] == 'softmax':
-                    pred = output_batch_fusion.argmax(dim=1, keepdim=True)
-                loss = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, class_weights_train, output_patch, test_bool=False)
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(train_batch, views_names)
+                output_batch_local = output_batch_local.view(-1)
+                output_batch_global = output_batch_global.view(-1)
+                output_batch_fusion = output_batch_fusion.view(-1)
+                train_labels = train_labels.float()
+                pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+                loss = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, train_labels, class_weights_train, test_bool=False)
 
             else:
                 if config_params['learningtype'] == 'SIL':
-                    output_batch = model(train_batch, eval_mode)
+                    output_batch = model(train_batch)
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch = model(train_batch, views_names, eval_mode)
-                elif config_params['learningtype'] == 'MV':
-                    output_batch = model(train_batch, views_names, eval_mode)
+                    output_batch = model(train_batch, views_names)
                 
                 if config_params['activation'] == 'sigmoid':
-                    if len(output_batch.shape)>1:
-                        output_batch = output_batch.squeeze(1)
-                    output_batch = output_batch.view(-1)                                                                    
+                    output_batch = output_batch.squeeze(1)
+                    output_batch = output_batch.view(-1)                                                                          
                     train_labels = train_labels.float()
                     pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
                     if config_params['classimbalance'] == 'focalloss':
@@ -227,7 +203,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 utils.save_model(model, optimizer, epoch, running_train_loss, path_to_model)
                 per_model_metrics, conf_mat_test = test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
                 evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train, total_images_train, loss_train, None, None, None, epoch, conf_mat_train, None, current_lr, None, path_to_results_xlsx, path_to_results_text)
-                evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+                evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
                 evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
 
         if scheduler!=None: 
@@ -236,8 +212,8 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         print('Current Time after validation check on the last epoch:', time.ctime(time.time()), flush=True)
 
     if config_params['usevalidation']:
-        evaluation.write_results_xlsx_confmat(config_params, modelcheckpoint.conf_mat_train_best, path_to_results_xlsx, 'confmat_train_val_test')
-        evaluation.write_results_xlsx_confmat(config_params, modelcheckpoint.conf_mat_test_best, path_to_results_xlsx, 'confmat_train_val_test')
+        evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_train_best, path_to_results_xlsx, 'confmat_train_val_test')
+        evaluation.write_results_xlsx_confmat(modelcheckpoint.conf_mat_test_best, path_to_results_xlsx, 'confmat_train_val_test')
 
     print('Finished Training')
     
@@ -250,8 +226,7 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
     correct = 0
     s=0
     batch_val_no=0
-    eval_mode = True
-    conf_mat_val=np.zeros((config_params['numclasses'],config_params['numclasses']))
+    conf_mat_val=np.zeros((2,2))
 
     class_weights_val = loss_function.class_imbalance(config_params, df_val)
 
@@ -269,33 +244,24 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
             val_labels = val_labels.view(-1)#.float()
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
-                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, _, _, _, _ = model(val_batch, eval_mode) # compute model output, loss and total train loss over one epoch
-                    output_patch_val = None
+                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch) # compute model output, loss and total train loss over one epoch
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, _, _, _, _, output_patch_val = model(val_batch, views_names, eval_mode)
+                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val = model(val_batch, views_names)
                 
-                if config_params['activation'] == 'sigmoid':
-                    output_batch_local_val = output_batch_local_val.view(-1)
-                    output_batch_global_val = output_batch_global_val.view(-1)
-                    output_batch_fusion_val = output_batch_fusion_val.view(-1)
-                    val_labels = val_labels.float()
-                    val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
-                
-                elif config_params['activation'] == 'softmax':
-                    val_pred = output_batch_fusion_val.argmax(dim=1, keepdim=True)
-
-                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, class_weights_val, output_patch_val, test_bool=False).item()
+                output_batch_local_val = output_batch_local_val.view(-1)
+                output_batch_global_val = output_batch_global_val.view(-1)
+                output_batch_fusion_val = output_batch_fusion_val.view(-1)
+                val_labels = val_labels.float()
+                val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
+                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss_val, bceloss_val, output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, val_labels, class_weights_val, test_bool=False).item()
                 output_val = output_batch_fusion_val
             else:
                 if config_params['learningtype'] == 'SIL':
-                    output_val = model(val_batch, eval_mode)
-                elif config_params['learningtype'] == 'MIL':
-                    output_val = model(val_batch, views_names, eval_mode)
-                elif config_params['learningtype'] == 'MV':
-                    output_val = model(val_batch, views_names, eval_mode)
+                    output_val = model(val_batch)
+                if config_params['learningtype'] == 'MIL':
+                    output_val = model(val_batch, views_names)
                 if config_params['activation'] == 'sigmoid':
-                    if len(output_val.shape)>1:
-                        output_val = output_val.squeeze(1)
+                    output_val = output_val.squeeze(1)
                     output_val = output_val.view(-1)                                                 
                     val_labels=val_labels.float()
                     val_pred = torch.ge(torch.sigmoid(output_val), torch.tensor(0.5)).float()
@@ -315,18 +281,14 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                     output_all_ten = torch.sigmoid(output_val.data)
                 elif config_params['activation'] == 'softmax':
                     output_all_ten = F.softmax(output_val.data,dim=1)
-                    if config_params['numclasses'] < 3:
-                        output_all_ten = output_all_ten[:,1]
+                    output_all_ten = output_all_ten[:,1]
             else:
                 val_pred_all = torch.cat((val_pred_all,val_pred),dim=0)
                 val_labels_all = torch.cat((val_labels_all,val_labels),dim=0)
                 if config_params['activation'] == 'sigmoid':
                     output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
                 elif config_params['activation'] == 'softmax':
-                    if config_params['numclasses'] < 3:
-                        output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)
-                    else:
-                        output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)),dim=0)
+                    output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)
 
             s = s+val_labels.shape[0]    
             val_loss += val_labels.size()[0]*loss1 # sum up batch loss
@@ -342,7 +304,7 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
         val_loss, val_loss/total_images, correct, total_images,
         100. * correct / total_images,epoch+1), flush=True)
     
-    auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy(), multi_class='ovo')
+    auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy())
     return correct, total_images, val_loss, conf_mat_val, auc
 
 if __name__=='__main__':
@@ -378,19 +340,13 @@ if __name__=='__main__':
     for config_file in config_file_names[num_config_start:num_config_end]:
         begin_time = datetime.datetime.now()
         
+        print("config file reading:",config_file)
         config_params = read_config_file.read_config_file(config_file)
-        #config_params['batchsize'] = 1
-        config_params['path_to_output'] = "/".join(config_file.split('/')[:-1])
+
         g = set_random_seed(config_params)
         
         if config_params['usevalidation']:
             path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
-            #path_to_model = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/model_8_24.tar"
-            #path_to_results_xlsx = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/result_8_24.xlsx"
-            #path_to_results_text = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/result_8_24.txt"
-            #path_to_learning_curve = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/learningcurve_8_24.png"
-            #path_to_log_file = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/log_8_24.txt"
-            #path_to_hyperparam_search = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/hyperparamsearch_1-2_8_24.xlsx"
             df_train, df_val, df_test, batches_train, batches_val, batches_test, view_group_indices_train = read_input_file.input_file_creation(config_params)
             dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, view_group_indices_train, g)
         else:
@@ -406,46 +362,28 @@ if __name__=='__main__':
         else:
             train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
         
-            
         #hyperparameter results
         '''if config_params['usevalidation']:
-            config_params['path_to_hyperparam_search'] = path_to_hyperparam_search
-            config_params['config_file'] = config_file.split('/')[-1]
-            test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val, path_to_results_xlsx, 'hyperparam_results')
-            #per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val, path_to_results_xlsx)
-            ##hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepochs'], config_params['batchsize']] + per_model_metrics_val
-            #evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
+            per_model_metrics_val, _ = test.run_test(config_params, model, path_to_model, dataloader_val, batches_val, df_val, path_to_results_xlsx)
+            hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepochs'], config_params['batchsize']] + per_model_metrics_val
+            evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
         '''
         #test the model
-        test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results')
-        #if config_params['learningtype'] == 'SIL':
-            #per_model_metrics_test, conf_mat_test, per_model_metrics_test_case = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
-            #evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
-            #evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
-            #evaluation.write_results_xlsx(per_model_metrics_test_case, path_to_results_xlsx, 'test_results')
-        #else:
-            #per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
-            #evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
-            #evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
-        
+        if config_params['learningtype'] == 'SIL':
+            per_model_metrics_test, conf_mat_test, per_model_metrics_test_case = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
+            evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+            evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
+            evaluation.write_results_xlsx(per_model_metrics_test_case, path_to_results_xlsx, 'test_results')
+        else:
+            per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
+            evaluation.write_results_xlsx_confmat(conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+            evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
         
         #save attention weights
         #path_to_attentionwt = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"
         #print(path_to_attentionwt)
         #attention_wt_extraction.save_attentionwt(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_attentionwt)
 
-        #visualize saliency maps
-        #visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test)
-
-        #match image labels to attention weights
-        #imagelabel_attwt_match.run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_test, df_test)
-
-        #save feature vector 
-        '''path_to_featurevector = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"
-        print(path_to_featurevector)
-        #featurevector_hook.save_featurevector(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_featurevector)
-        featurevector_hook.visualize_feature_maps(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_featurevector)
-        '''
         '''except Exception as err:
             print("Exception encountered:",err)
             #save the results
@@ -456,7 +394,7 @@ if __name__=='__main__':
             #results_plot(df,file_name)
         '''
         
-        f = open(path_to_log_file,'a')
+        f = open(path_to_log_file,'w')
         f.write("Model parameters:"+str(total_params/math.pow(10,6))+'\n')
         f.write("Start time:"+str(begin_time)+'\n')
         f.write("End time:"+str(datetime.datetime.now())+'\n')

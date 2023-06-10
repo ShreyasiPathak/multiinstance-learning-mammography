@@ -145,15 +145,10 @@ def read_config_file(config_file):
         config_params['valloss_resumetrain'] = None
     
     try:
-        config_params['crop_shape'] = ast.literal_eval(config_object["parametersetting"]["crop_shape"])
-    except:
-        config_params['crop_shape'] = (256, 256)
-    
-    try:
         config_params['cam_size'] = ast.literal_eval(config_object["parametersetting"]["cam_size"])
     except:
         config_params['cam_size'] = (92, 60)
-
+    
     try:
         config_params['dependency'] = config_object["parametersetting"]['dependency']
         if config_params['dependency'] == 'False':
@@ -182,30 +177,22 @@ def read_config_file(config_file):
     config_params['SIL_csvfilepath'] = config_object["parametersetting"]['SIL_csvfilepath']
     if config_params['SIL_csvfilepath'] == 'False':
         config_params['SIL_csvfilepath'] = False
-    config_params['MIL_csvfilepath'] = config_object["parametersetting"]['MIL_csvfilepath'] #"/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_biradscombined_breastdensityadded_patientinfoadded_final4.csv"
+    config_params['MIL_csvfilepath'] = config_object["parametersetting"]['MIL_csvfilepath']
     if config_params['MIL_csvfilepath'] == 'False':
         config_params['MIL_csvfilepath'] = False
     config_params['preprocessed_imagepath'] = config_object["parametersetting"]['preprocessed_imagepath']
     config_params['bitdepth'] = int(config_object["parametersetting"]['bitdepth'])
-    
-    try:
-        config_params['early_stopping_criteria'] = config_object["parametersetting"]['early_stopping_criteria']
-        if config_params['early_stopping_criteria'] == 'False':
-            config_params['early_stopping_criteria'] = False
-    except:
-        config_params['early_stopping_criteria'] = 'loss'
 
     if config_params['femodel']=='gmic_resnet18':
         config_params['gmic_parameters'] = {
             "device_type": 'gpu',
-            #"gpu_number": str(config_params['device'].split(':')[1]),
-            "gpu_number": str(config_params['device']),
+            "gpu_number": str(config_params['device'].split(':')[1]),
             "max_crop_noise": (100, 100),
             "max_crop_size_noise": 100,
             # model related hyper-parameters
             "cam_size": config_params['cam_size'],
             "K": config_params['ROIpatches'],
-            "crop_shape": config_params['crop_shape'],
+            "crop_shape": (256, 256),
             "post_processing_dim": 512,
             "num_classes": config_params['numclasses'],
             "use_v1_global":True,

@@ -26,11 +26,9 @@ import torch.nn as nn
 import numpy as np
 
 from torchvision._internally_replaced_utils import load_state_dict_from_url
-import matplotlib.pyplot as plt
 
 from utilities import utils
 from models import gmic_modules as m
-
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-f37072fd.pth',
@@ -65,7 +63,6 @@ class GMIC(nn.Module):
         self.retrieve_roi_crops = m.RetrieveROIModule(self.experiment_parameters, self)
 
         # detection network
-        self.roitransform = utils.ROIRotateTransform([0, 90, 180, 270])
         self.local_network = m.LocalNetwork(self.experiment_parameters, self)
         self.local_network.add_layers()
 
@@ -113,34 +110,30 @@ class GMIC(nn.Module):
         batch_size, num_crops, _ = crop_positions.shape
         crop_h, crop_w = self.experiment_parameters["crop_shape"]
 
-        #output = torch.ones((batch_size, num_crops, x_original_pytorch.shape[1], crop_h, crop_w))
         output = torch.ones((batch_size, num_crops, crop_h, crop_w))
         if self.experiment_parameters["device_type"] == "gpu":
-            #device = torch.device("cuda:{}".format(self.experiment_parameters["gpu_number"]))
-            device = torch.device(self.experiment_parameters["gpu_number"])
+            device = torch.device("cuda:{}".format(self.experiment_parameters["gpu_number"]))
             output = output.cuda().to(device)
         for i in range(batch_size):
             for j in range(num_crops):
-                utils.crop_pytorch(x_original_pytorch[i, 0, :, :], 
-                                   self.experiment_parameters["crop_shape"], 
-                                   crop_positions[i,j,:], 
-                                   output[i,j,:,:],
-                                   method=crop_method)
-        #print("output:", output)
+                utils.crop_pytorch(x_original_pytorch[i, 0, :, :],
+                                                    self.experiment_parameters["crop_shape"],
+                                                    crop_positions[i,j,:],
+                                                    output[i,j,:,:],
+                                                    method=crop_method)
         return output
 
 
-    def forward(self, x_original, eval_mode):
+    def forward(self, x_original):
         """
         :param x_original: N,H,W,C numpy matrix
         """
-        #print("gmic:", x_original.get_device(), x_original.shape)
         # global network: x_small -> class activation map
-        h_g, self.saliency_map, sal_map_before_sigmoid = self.global_network.forward(x_original)
-        #print("h_g:", h_g.shape) #3, 512, 92, 60
+        h_g, self.saliency_map = self.global_network.forward(x_original)
+
         # calculate y_global
         # note that y_global is not directly used in inference
-        topt_feature, self.y_global = self.aggregation_function.forward(self.saliency_map, sal_map_before_sigmoid)
+        topt_feature, self.y_global = self.aggregation_function.forward(self.saliency_map)
 
         # gmic region proposal network
         small_x_locations = self.retrieve_roi_crops.forward(x_original, self.cam_size, self.saliency_map)
@@ -151,24 +144,12 @@ class GMIC(nn.Module):
         # patch retriever
         crops_variable = self._retrieve_crop(x_original, self.patch_locations, self.retrieve_roi_crops.crop_method)
         self.patches = crops_variable.data.cpu().numpy()
-        
+
         # detection network
-        #batch_size, num_crops, Ch, I, J = crops_variable.size()
         batch_size, num_crops, I, J = crops_variable.size()
-        #crops_variable = crops_variable.view(batch_size * num_crops, Ch, I, J) #.unsqueeze(1) #60x1x256x256
         crops_variable = crops_variable.view(batch_size * num_crops, I, J).unsqueeze(1)
-        #print("crops_variable:", crops_variable.shape)
-        #print(np.moveaxis(x_original[0, :, :, :].cpu().numpy(), 0, -1).shape)
-        #plt.imsave(str(0)+'_image.png', x_original[0, 0, :, :].cpu().numpy(), cmap='gray')
-        #print("patch location:", self.patch_locations.shape) # 10, 6, 2
-        #print(self.patch_locations[0,:,:])
-        #if not eval_mode:
-        #    for i in range(0, crops_variable.shape[0]):
-        #        crops_variable[i, :, :, :] = self.roitransform(crops_variable[i, :, :, :])
-        #        #plt.imsave(str(i)+'_roi.png', crops_variable[i, 0, :, :].cpu().numpy(), cmap='gray', vmin=-2.117, vmax=2.248)
-        
         h_crops = self.local_network.forward(crops_variable).view(batch_size, num_crops, -1)
-        #input('halt')
+
         # MIL module
         # y_local is not directly used during inference
         if self.experiment_parameters['learningtype'] == 'SIL':
@@ -179,19 +160,16 @@ class GMIC(nn.Module):
         # fusion branch
         # use max pooling to collapse the feature map
         g1, _ = torch.max(h_g, dim=2)
-        #print('g1.shape', g1.shape) #3, 512, 60
-        global_vec, _ = torch.max(g1, dim=2) 
-        #print('global_vec shape:', global_vec.shape) #3, 512
+        global_vec, _ = torch.max(g1, dim=2)
         concat_vec = torch.cat([global_vec, z], dim=1)
         #self.y_fusion = torch.sigmoid(self.fusion_dnn(concat_vec))
         if self.experiment_parameters['learningtype'] == 'SIL':
             self.y_fusion = self.fusion_dnn(concat_vec)
-        
+
         if self.experiment_parameters['learningtype'] == 'SIL':
-            return self.y_local, self.y_global, self.y_fusion, self.saliency_map, self.patch_locations, self.patches, self.patch_attns, h_crops
+            return self.y_local, self.y_global, self.y_fusion, self.saliency_map
         elif self.experiment_parameters['learningtype'] == 'MIL':
-            #return z, topt_feature, self.y_global, concat_vec, self.saliency_map
-            return z, topt_feature, self.y_global, concat_vec, self.saliency_map, self.patch_locations, self.patches, self.patch_attns, h_crops, global_vec#, topt_feature_before_sig
+            return z, topt_feature, self.y_global, concat_vec, self.saliency_map
 
 
 def _gmic(gmic_parameters):
