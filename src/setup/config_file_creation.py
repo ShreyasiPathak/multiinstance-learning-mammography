@@ -51,7 +51,7 @@ for hyperparam in hyperparam_config[start:end]:
             "batchsize": 5, #options=10, 20
             "numclasses": 1,
             "maxepochs": 30, #150
-            "numworkers": 15,
+            "numworkers": 20,
             "lr": float(hyperparam['lr']), #10**float(hyperparam['lr']), #0.001, 0.00002
             "wtdecay": float(hyperparam['wtdecay']), #10**float(hyperparam['wtdecay']), #0.0005, 0.00001
             "sm_reg_param": float(hyperparam['sm_reg_param']), #10**float(hyperparam['sm_reg_param']), False
@@ -67,7 +67,7 @@ for hyperparam in hyperparam_config[start:end]:
             "flipimage": True,
             "randseedother": 8, #options=8, 24, 80
             "randseeddata": 8, #options=8, 24, 80, 42
-            "device": 'cuda',
+            "device": 'cuda:0',
             "trainingmethod": 'fixedlr', #options: multisteplr1, fixedlr, lrdecayshu, lrdecaykim, cosineannealing
             "channel": 3, #options: 3 for rgb, 1 for grayscale
             "regionpooling": 't-pool', #options: shu_ggp, shu_rgp, avgpool, maxpool, 1x1conv, t-pool
