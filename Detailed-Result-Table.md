@@ -8,6 +8,7 @@
 
 #### [Extension of paper Table IV] Comparing feature extractors for image-level prediction on official CBIS split. 
 | Model     | Precision                | Recall                   | F1                       | AUC                      |
+| --------- | -------------------      | -------                  | ---------                | ---------                | 
 |           |                          | MGM-FV                   |                          |                          |   
 | DIB-MG    | $0.41 \pm 0.01$          | $0.33 \pm 0.01$          | $0.37 \pm 0.01$          | $0.71 \pm 0.00$          |
 | ISMeanImg | $0.50 \pm 0.11$          | $0.63 \pm 0.08$          | $0.55 \pm 0.04$          | $0.83 \pm 0.01$          |
