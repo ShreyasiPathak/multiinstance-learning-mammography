@@ -1,5 +1,5 @@
 ## Overview
-| Model      |         Precision   | Recall  | F1        | AUC        | $AUC^{Paper}$ |
+| Model      |         Precision   | Recall  | F1        | AUC        | $\text{AUC}^{Paper}$ |
 | ---------- | ------------------- | ------- | --------- | ---------  | ----------- |
 | DIB-MG | $0.52 \pm 0.01$ | $0.56 \pm 0.03$ |$0.54 \pm 0.02$ | $0.64 \pm 0.00$ | n.a. |
 | DenseNet169 | | | | | |
