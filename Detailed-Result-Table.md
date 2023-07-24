@@ -38,3 +38,23 @@
 | ESAttImg  | $0.34 \pm 0.06$          | $0.63 \pm 0.03$          | $0.44 \pm 0.04$          | $0.81 \pm 0.01$          |
 | ESGattImg | $0.41 \pm 0.08$          | $0.59 \pm 0.07$          | $\textbf{0.48} \pm 0.04$ | $0.82 \pm 0.01$          |
 | ESAttSide | $0.37 \pm 0.04$          | $0.67 \pm 0.04$          | $\textbf{0.48} \pm 0.03$ | $\textbf{0.83} \pm 0.02$ |
+
+#### [Extension of paper Table V] SIL VS. MIL COMPARISON ON MGM-VV, CBIS-DDSM, VINDR
+|  Model   | Pred. Level | Precision                | Recall                   | F1                       | AUC                      |
+|          |             | MGM-VV                   |                          |                          |                          |
+| SILcl    | Image       | $0.34 \pm 0.02$          | $0.61 \pm 0.08$          | $0.44 \pm 0.01$          | $0.75 \pm 0.01$          |
+| SILcl    | Case        | $0.29 \pm 0.02$          | $\textbf{0.86} \pm 0.06$ | $0.44 \pm 0.01$          | n.a.                     |
+| ESAttImg | Case        | $\textbf{0.50} \pm 0.05$ | $0.67 \pm 0.01$          | $\textbf{0.57} \pm 0.03$ | $\textbf{0.84} \pm 0.01$ |
+|          |             | CBIS                     |                          |                          |                          |
+| SILil    | Image       | $0.65 \pm 0.06$          | $0.68 \pm 0.02$          | $0.67 \pm 0.03$          | $\textbf{0.78} \pm 0.02$ |
+| SILil    | Case        | $0.63 \pm 0.05$          | $\textbf{0.75} \pm 0.03$ | $\textbf{0.68} \pm 0.03$ | n.a.                     |
+| SILcl    | Image       | $\textbf{0.73} \pm 0.09$ | $0.61 \pm 0.10$          | $0.66 \pm 0.02$          | $\textbf{0.78} \pm 0.03$ |
+| SILcl    | Case        | $0.69 \pm 0.07$          | $0.68 \pm 0.13$          | $\textbf{0.68} \pm 0.04$ | n.a.                     |
+| ESAttImg | Case        | $0.67 \pm 0.03$          | $0.68 \pm 0.10$          | $0.67 \pm 0.04$          | $\textbf{0.78} \pm 0.03$ |
+|          |             | VinDr                    |                          |                          |                          | 
+| SILil    | Image       | $0.17 \pm 0.01$          | $0.67 \pm 0.01$          | $0.27 \pm 0.01$          | $\textbf{0.83} \pm 0.01$ |
+| SILil    | Case        | $0.18 \pm 0.00$          | $0.83 \pm 0.03$          | $0.30 \pm 0.00$          | n.a.                     |
+| SILcl    | Image       | $0.22 \pm 0.05$          | $0.63 \pm 0.09$          | $0.32 \pm 0.05$          | $0.76 \pm 0.00$          |
+| SILcl    | Case        | $0.16 \pm 0.03$          | $\textbf{0.85} \pm 0.07$ | $0.26 \pm 0.05$          | n.a.                     |
+| ESAttImg | Case        | $\textbf{0.34} \pm 0.06$ | $0.63 \pm 0.03$          | $\textbf{0.44} \pm 0.04$ | $0.81 \pm 0.01$          |
+
