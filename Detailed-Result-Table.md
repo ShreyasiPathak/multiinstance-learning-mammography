@@ -41,6 +41,7 @@
 
 #### [Extension of paper Table V] SIL VS. MIL COMPARISON ON MGM-VV, CBIS-DDSM, VINDR
 |  Model   | Pred. Level | Precision                | Recall                   | F1                       | AUC                      |
+| ---------| ------------| -------                  | ---------                | ---------                | -------------------------|
 |          |             | MGM-VV                   |                          |                          |                          |
 | SILcl    | Image       | $0.34 \pm 0.02$          | $0.61 \pm 0.08$          | $0.44 \pm 0.01$          | $0.75 \pm 0.01$          |
 | SILcl    | Case        | $0.29 \pm 0.02$          | $\textbf{0.86} \pm 0.06$ | $0.44 \pm 0.01$          | n.a.                     |
