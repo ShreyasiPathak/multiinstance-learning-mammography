@@ -1,7 +1,7 @@
-#### Description
+### Description
 We only reported the F1 and AUC score for our models in the paper. Here you can find precision and recall score as well for all models in the paper (result Tables II, IV, V).
 
-#### [Extension of paper Table II] Comparing feature extractors for image-level prediction on official CBIS split. 
+#### [Extension of Table II of paper] Comparing feature extractors for image-level prediction on official CBIS split. 
 | Model         | $\text{Precision}^{Our}$ | $\text{Recall}^{Our}$    | $\text{F1}^{Our}$        | $\text{AUC}^{Our}$       | $\text{AUC}^{Paper}$     |
 | ----------    | -------------------      | -------                  | ---------                | ---------                | -----------              |
 | DIB-MG        | $0.52 \pm 0.01$          | $0.56 \pm 0.03$          | $0.54 \pm 0.02$          | $0.64 \pm 0.00$          | n.a.                     |
@@ -15,7 +15,7 @@ We only reported the F1 and AUC score for our models in the paper. Here you can 
 | GMIC-ResNet18 | $0.57 \pm 0.06$          | $\textbf{0.80} \pm 0.10$ | $\textbf{0.66} \pm 0.02$ | $\textbf{0.79} \pm 0.02$ | $0.83 \pm 0.00$          |
 
 
-#### [Extension of paper Table IV] Performance of MIL pooling approaches on CBIS, VinDr, MGM-FV. 
+#### [Extension of Table IV of paper] Performance of MIL pooling approaches on CBIS, VinDr, MGM-FV. 
 | Model     | Precision                | Recall                   | F1                       | AUC                      |
 | --------- | -------------------      | -------                  | ---------                | ---------                | 
 |           |                          | *CBIS*                   |                          |                          |        
@@ -52,7 +52,7 @@ We only reported the F1 and AUC score for our models in the paper. Here you can 
 | ESGAttImg | $0.47 \pm 0.06$          | $0.67 \pm 0.02$          | $0.55 \pm 0.04$          | $0.83 \pm 0.02$          |
 | ESAttSide | $\textbf{0.56} \pm 0.03$ | $0.65 \pm 0.04$          | $\textbf{0.60} \pm 0.00$ | $\textbf{0.85} \pm 0.01$ |
 
-#### [Extension of paper Table V] SIL VS. MIL comparison on CBIS, VinDr, MGM-VV.
+#### [Extension of Table V of paper] SIL VS. MIL comparison on CBIS, VinDr, MGM-VV.
 |  Model   | Pred. Level | Precision                | Recall                   | F1                       | AUC                      |
 | ---------| ------------| -------                  | ---------                | ---------                | -------------------------|
 |          |             |                          |   *CBIS*                 |                          |                          |
