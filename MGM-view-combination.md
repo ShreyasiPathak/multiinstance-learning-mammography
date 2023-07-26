@@ -1,1 +1,1 @@
-<img src="/MGM-images/LMLO.png" alt="LMLO" style="height: 100px; width:100px;"/>
+<img src="/MGM-images/LMLO.png" alt="LMLO" style="height: 300px; width:200px;"/>
