@@ -1,9 +1,15 @@
 #### [Extension of paper Table II] Comparing feature extractors for image-level prediction on official CBIS split. 
-| Model      | $\text{Precision}^{Our}$   | $\text{Recall}^{Our}$  | $\text{F1}^{Our}$       | $\text{AUC}^{Our}$        | $\text{AUC}^{Paper}$ |
-| ---------- | -------------------        | -------                | ---------               | ---------                 | -----------          |
-| DIB-MG | $0.52 \pm 0.01$ | $0.56 \pm 0.03$ |$0.54 \pm 0.02$ | $0.64 \pm 0.00$ | n.a. |
-| DenseNet169 | | | | | |
-| +avgpool | $0.59 \pm 0.08$ | $0.65 \pm 0.04$ | $0.62 \pm 0.03$ |$0.76 \pm 0.01$| $0.76 \pm 0.00$|
+| Model         | $\text{Precision}^{Our}$ | $\text{Recall}^{Our}$    | $\text{F1}^{Our}$        | $\text{AUC}^{Our}$       | $\text{AUC}^{Paper}$     |
+| ----------    | -------------------      | -------                  | ---------                | ---------                | -----------              |
+| DIB-MG        | $0.52 \pm 0.01$          | $0.56 \pm 0.03$          |$0.54 \pm 0.02$           | $0.64 \pm 0.00$          | n.a.                     |
+| DenseNet169   |                          |                          |                          |                          |                          |
+| +avgpool      | $0.65 \pm 0.04$          | $0.59 \pm 0.08$          | $0.61 \pm 0.03$          |$0.76 \pm 0.01$           | $0.76 \pm 0.00$          |
+| +maxpool      | $0.59 \pm 0.03$          | $0.68 \pm 0.04$          | $0.63 \pm 0.00$          | $0.74 \pm 0.00$          | $0.74 \pm 0.00$          |
+| +RGP (k=0.7)  | $\textbf{0.66} \pm 0.02$ | $0.58 \pm 0.03$          | $0.62 \pm 0.01$          | $0.76 \pm 0.01$          | $0.84 \pm 0.00$          |
+| +GGP (k=0.7)  | $0.70 \pm 0.02$          | $0.55 \pm 0.05 $         | $0.62 \pm 0.03$          | $0.76 \pm 0.02$          | $0.82 \pm 0.00$          |
+| Shen at al.   |                          |                          |                          |                          |                          |
+| ResNet34      | $0.62 \pm 0.01$          | $0.71 \pm 0.04$          | $0.66 \pm 0.02$          | $\textbf{0.78} \pm 0.01$ | $0.79 \pm 0.01$          |
+| GMIC-ResNet18 | $0.57 \pm 0.06$          | $\textbf{0.80} \pm 0.10$ | $\textbf{0.66} \pm 0.02$ | $0.79 \pm 0.02$          | $\textbf{0.83} \pm 0.00$ |
 
 
 #### [Extension of paper Table IV] Comparing feature extractors for image-level prediction on official CBIS split. 
