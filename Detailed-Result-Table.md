@@ -15,7 +15,7 @@
 #### [Extension of paper Table IV] Performance of MIL pooling approaches on CBIS, VinDr, MGM-FV. 
 | Model     | Precision                | Recall                   | F1                       | AUC                      |
 | --------- | -------------------      | -------                  | ---------                | ---------                | 
-|           |                          | *CBIS*                   |                          |                          |   
+|         <td colspan=5> *CBIS* </td>  |              
 | DIB-MG    | $0.58 \pm 0.01$          | $0.47 \pm 0.05$          | $0.52 \pm 0.03$          | $0.64 \pm 0.01$          |
 | ISMeanImg | $0.72 \pm 0.11$          | $0.63 \pm 0.18$          | $0.65 \pm 0.07$          | $0.79 \pm 0.03$          |
 | ISMaxImg  | $0.64 \pm 0.06$          | $0.68 \pm 0.07$          | $0.66 \pm 0.05$          | $0.75 \pm 0.05$          |
