@@ -1,5 +1,5 @@
 ### Description
-We only reported the F1 and AUC score for our models in the paper. Here you can find precision and recall score as well for all models in the paper (result Tables II, IV, V).
+We only reported the F1 and AUC score for our models in the paper. Here you can find precision and recall scores as well for all models in the paper (result Tables II, IV, V).
 
 #### [Extension of Table II of paper] Comparing feature extractors for image-level prediction on official CBIS split. 
 | Model         | $\text{Precision}^{Our}$ | $\text{Recall}^{Our}$    | $\text{F1}^{Our}$        | $\text{AUC}^{Our}$       | $\text{AUC}^{Paper}$     |
