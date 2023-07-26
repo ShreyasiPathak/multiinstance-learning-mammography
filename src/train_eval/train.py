@@ -417,6 +417,7 @@ if __name__=='__main__':
             #evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
         '''
         #test the model
+        print(df_test['Views'].str.split('+').str.len().groupby())
         test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results')
         #if config_params['learningtype'] == 'SIL':
             #per_model_metrics_test, conf_mat_test, per_model_metrics_test_case = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)

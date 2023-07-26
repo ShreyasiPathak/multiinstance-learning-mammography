@@ -93,16 +93,16 @@ def calc_viewwise_metric(views_names, views_standard, count_dic_viewwise, test_l
         if view not in views_standard:
             flag=1
     if flag==0:
-        views_count_4std_key='views_std'
-        if views_count_4std_key in count_dic_viewwise.keys():
-            count_dic_viewwise[views_count_4std_key]['true'] = np.append(count_dic_viewwise[views_count_4std_key]['true'],test_labels.cpu().numpy())
-            count_dic_viewwise[views_count_4std_key]['pred'] = np.append(count_dic_viewwise[views_count_4std_key]['pred'],test_pred.cpu().numpy())
-            count_dic_viewwise[views_count_4std_key]['prob'] = np.append(count_dic_viewwise[views_count_4std_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
+        views_count_std_key='views_std'
+        if views_count_std_key in count_dic_viewwise.keys():
+            count_dic_viewwise[views_count_std_key]['true'] = np.append(count_dic_viewwise[views_count_std_key]['true'],test_labels.cpu().numpy())
+            count_dic_viewwise[views_count_std_key]['pred'] = np.append(count_dic_viewwise[views_count_std_key]['pred'],test_pred.cpu().numpy())
+            count_dic_viewwise[views_count_std_key]['prob'] = np.append(count_dic_viewwise[views_count_std_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
         else:
-            count_dic_viewwise[views_count_4std_key]={}
-            count_dic_viewwise[views_count_4std_key]['true'] = test_labels.cpu().numpy()
-            count_dic_viewwise[views_count_4std_key]['pred'] = test_pred.cpu().numpy()
-            count_dic_viewwise[views_count_4std_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+            count_dic_viewwise[views_count_std_key]={}
+            count_dic_viewwise[views_count_std_key]['true'] = test_labels.cpu().numpy()
+            count_dic_viewwise[views_count_std_key]['pred'] = test_pred.cpu().numpy()
+            count_dic_viewwise[views_count_std_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
     
     elif flag==1:
         views_count_4nonstd_key='views_nonstd'
@@ -115,6 +115,18 @@ def calc_viewwise_metric(views_names, views_standard, count_dic_viewwise, test_l
             count_dic_viewwise[views_count_4nonstd_key]['true'] = test_labels.cpu().numpy()
             count_dic_viewwise[views_count_4nonstd_key]['pred'] = test_pred.cpu().numpy()
             count_dic_viewwise[views_count_4nonstd_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    if flag==0 and views_count_key=='4':
+        views_count_4std_key='4_views_std'
+        if views_count_4std_key in count_dic_viewwise.keys():
+            count_dic_viewwise[views_count_4std_key]['true'] = np.append(count_dic_viewwise[views_count_4std_key]['true'],test_labels.cpu().numpy())
+            count_dic_viewwise[views_count_4std_key]['pred'] = np.append(count_dic_viewwise[views_count_4std_key]['pred'],test_pred.cpu().numpy())
+            count_dic_viewwise[views_count_4std_key]['prob'] = np.append(count_dic_viewwise[views_count_4std_key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
+        else:
+            count_dic_viewwise[views_count_4std_key]={}
+            count_dic_viewwise[views_count_4std_key]['true'] = test_labels.cpu().numpy()
+            count_dic_viewwise[views_count_4std_key]['pred'] = test_pred.cpu().numpy()
+            count_dic_viewwise[views_count_4std_key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
     
     if views_names_key in count_dic_viewwise.keys():
         count_dic_viewwise[views_names_key]['true'] = np.append(count_dic_viewwise[views_names_key]['true'],test_labels.cpu().numpy())
@@ -143,13 +155,14 @@ def write_results_viewwise(config_params, path_to_results_xlsx, sheetname, count
     wb = op.load_workbook(path_to_results_xlsx)
     if count_dic_viewwise!={}:
         for key in count_dic_viewwise.keys():
-            print(key)
-            per_model_metrics = aggregate_performance_metrics(config_params, count_dic_viewwise[key]['true'],count_dic_viewwise[key]['pred'],count_dic_viewwise[key]['prob'])
-            header = [key]
-            sheet = wb[sheetname]
-            sheet.append(header)
-            sheet.append(['Count','PrecisionMicro','PrecisionMacro','RecallMicro','RecallMacro','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
-            sheet.append([len(count_dic_viewwise[key]['true'])]+per_model_metrics)
+            if key=='4_views_std':
+                print(key)
+                per_model_metrics = aggregate_performance_metrics(config_params, count_dic_viewwise[key]['true'],count_dic_viewwise[key]['pred'],count_dic_viewwise[key]['prob'])
+                header = [key]
+                sheet = wb[sheetname]
+                sheet.append(header)
+                sheet.append(['Count','PrecisionBin','PrecisionMicro','PrecisionMacro','RecallBin','RecallMicro','RecallMacro','F1Bin','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
+                sheet.append([len(count_dic_viewwise[key]['true'])]+per_model_metrics)
     wb.save(path_to_results_xlsx)
 
 def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all, path_to_results):

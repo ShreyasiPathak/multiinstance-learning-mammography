@@ -155,7 +155,7 @@ def input_file_creation(config_params):
             print("df modality shape:",df_modality.shape)
             df_modality = df_modality[~df_modality['Views'].isnull()]
             print("df modality no null view:",df_modality.shape)
-            df_modality['FullPath'] = config_params['preprocessed_imagepath']+df_modality['ShortPath']
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
             if config_params['numclasses']==3:
                 df_modality['Groundtruth'] = df_modality['Groundtruth_3class']
             elif (config_params['numclasses']==1) or (config_params['numclasses']==2):
@@ -195,11 +195,19 @@ def input_file_creation(config_params):
 
             #bags with all views
             if config_params['viewsinclusion'] == 'all':
-                df_train = df_modality[df_modality['Split'] == 'training']
-                if config_params['usevalidation']:
-                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
-                df_test = df_modality[df_modality['Split'] == 'test']
-                total_instances = df_modality.shape[0]
+                if config_params['dataset'] == 'vindr':
+                    df_train = df_modality[df_modality['Split'] == 'training']
+                    if config_params['usevalidation']:
+                        df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                    df_test = df_modality[df_modality['Split'] == 'test']
+                    total_instances = df_modality.shape[0]
+
+                elif config_params['dataset'] == 'cbis-ddsm':
+                    df_train = df_modality[df_modality['FolderName'].str.contains('Training')]
+                    if config_params['usevalidation']:
+                        df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                    df_test = df_modality[df_modality['FolderName'].str.contains('Test')]
+                    total_instances = df_modality.shape[0]
             
             elif config_params['viewsinclusion'] == 'standard':
                 df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]

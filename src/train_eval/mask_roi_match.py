@@ -40,6 +40,29 @@ def mask_paths(config_params):
 
     return mask_path, image_size_path
 
+def dice_similarity_score(trueLoc, predLoc):
+    """
+    Function that calculates IOU given the true ROI location and predicted ROI location
+    """
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(trueLoc[0], predLoc[0])
+    yA = max(trueLoc[1], predLoc[1])
+    xB = min(trueLoc[2], predLoc[2])
+    yB = min(trueLoc[3], predLoc[3])
+
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (trueLoc[2] - trueLoc[0] + 1) * (trueLoc[3] - trueLoc[1] + 1)
+    boxBArea = (predLoc[2] - predLoc[0] + 1) * (predLoc[3] - predLoc[1] + 1)
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    dsc = 2*interArea / float(boxAArea + boxBArea)
+    # return the intersection over union value
+    return dsc
+
 def intersection_over_union(trueLoc, predLoc):
     """
     Function that calculates IOU given the true ROI location and predicted ROI location
@@ -179,8 +202,10 @@ def match_to_mask_images(config_params, original_image, exam_name, model_patch_a
             patch_location = model_patch_locations[0, idx, :]
             #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
             pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location)
-            if seg_eval_metric == 'IOU':
+            if seg_eval_metric=='IOU':
                 iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
+            elif seg_eval_metric=='DSC':
+                iou_over_all_patches.append(dice_similarity_score(true_mask_loc, pred_mask_loc))
             pred_mask_loc_all.append(pred_mask_loc)
         
         #max iou over all patches for each roi; [R] where R is number of patches
@@ -241,8 +266,10 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
                     patch_location = model_patch_locations[0, idx, :]
                     #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
                     pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location)
-                    if seg_eval_metric == 'IOU':
+                    if seg_eval_metric=='IOU':
                         iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
+                    elif seg_eval_metric=='DSC':
+                        iou_over_all_patches.append(dice_similarity_score(true_mask_loc, pred_mask_loc))
                     pred_mask_loc_all.append(pred_mask_loc)
             
                 #max iou over all patches for each roi; [R] where R is number of patches

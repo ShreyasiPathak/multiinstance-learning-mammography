@@ -567,6 +567,8 @@ def collect_images_8bits(config_params, data, views_allowed):
     #collect images for the model
     if data['Views'] in views_allowed:
         img_path = str(data['FullPath'])
+        '''
+        #for CLAHE
         img = cv2.imread(img_path, 0)
         img_dtype = img.dtype
         if config_params['dataset']=='cbis-ddsm':
@@ -581,15 +583,13 @@ def collect_images_8bits(config_params, data, views_allowed):
         img = Image.open(img_path)
         img= img.convert('RGB')
         breast_side = data['Views'][0]
-        #img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
         ### added later; have not checked if it works for shu or kim et al
-        transformTen = transforms.ToTensor()
-        img = transformTen(img)
+        #transformTen = transforms.ToTensor()
+        #img = transformTen(img)
         ### ends here ##
         if config_params['dataaug'] == 'kim':
             pad_longer_side = MyPaddingLongerSide(config_params['resize'])
             img = pad_longer_side(img, breast_side)
-        '''
         if config_params['flipimage']:
             hflip_img = MyHorizontalFlip()
             img = hflip_img(img, breast_side)

@@ -15,16 +15,17 @@ from sklearn.metrics import confusion_matrix
 #from train_eval import test, mask_roi_match, evaluation
 
 def imglabel_f1_plot(meanF1, stddev):
-    fig = plt.figure(figsize=(9,13))
-    plt.rcParams['font.size'] = 20
+    fig = plt.figure(figsize=(10,16))
+    #plt.rcParams['font.size'] = 20
     x = np.arange(6)
     labels = ['IS-Mean$^{img}$','IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
     #plt.errorbar(x, meanF1, yerr=stddev, fmt = 'o')
     plt.bar(x, meanF1, yerr=stddev, capsize = 3, color ='orange',)
-    plt.xticks(x, labels, rotation=30)
-    plt.xlabel('MIL models')
-    plt.ylabel('F1 score of image-level prediction using MIL models')
-    plt.savefig('f1_attmodel_gt_imglabel.pdf', format='pdf')
+    plt.xticks(x, labels, rotation=30, fontsize=25)
+    plt.xlabel('MIL models', fontsize=25)
+    plt.ylabel('F1 score of image-level prediction using MIL models', fontsize=25)
+    plt.yticks(fontsize=25)
+    plt.savefig('C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/IEEE-TMI/f1_attmodel_gt_imglabel.pdf', format='pdf')
 
 def match_imagelevel_groundtruth_withattnwt(config_params, exam_name, attwt):
     #print(exam_name)
