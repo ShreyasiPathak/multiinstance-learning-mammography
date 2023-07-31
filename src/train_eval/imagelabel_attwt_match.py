@@ -15,12 +15,13 @@ from sklearn.metrics import confusion_matrix
 #from train_eval import test, mask_roi_match, evaluation
 
 def imglabel_f1_plot(meanF1, stddev):
-    fig = plt.figure(figsize=(10,16))
+    fig = plt.figure(figsize=(14,16))
     #plt.rcParams['font.size'] = 20
     x = np.arange(6)
     labels = ['IS-Mean$^{img}$','IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
     #plt.errorbar(x, meanF1, yerr=stddev, fmt = 'o')
     plt.bar(x, meanF1, yerr=stddev, capsize = 3, color ='orange',)
+    plt.ylim(0.2)
     plt.xticks(x, labels, rotation=30, fontsize=25)
     plt.xlabel('MIL models', fontsize=25)
     plt.ylabel('F1 score of image-level prediction using MIL models', fontsize=25)
