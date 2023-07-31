@@ -1,1 +1,1 @@
-<img src="/MGM-view-combination/view1.pdf" alt="view1" style="height: 300px; width:150px;"/>
+<embed src="/MGM-view-combination/view1.pdf"  300px; width:150px;"/>
