@@ -31,14 +31,11 @@ All training and data augmentation details are the same as those mentioned above
 The best hyperparameter combination used in our experiments are: <br/>
 lr $= 0.0000630957344480193$ <br/>
 wtdecay $= 0.000316227766016838$ <br/>
-regularization term $\beta = 0.000158489319246111$ 
+regularization term $\beta = 0.000158489319246111$ <br/>
 **Data Augmentation:** We followed the data augmentation of Shen et al. (GMIC-ResNet18) described above under Single-instance Learning models. 
 
 ### General Settings
 For the val and test set, the images were only resized and normalized. The single channel of grayscale images was duplicated into 3 channels to fit pretrained models and normalized to ImageNet mean and standard deviation. For training from-scratch models, only the single grayscale channel was used as input and normalized to the range of [-1,1] [1].
-
-### GMIC
-
 
 ### References
 
