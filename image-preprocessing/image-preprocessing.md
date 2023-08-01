@@ -1,15 +1,13 @@
 ### Image Preprocessing
 
-The image pre-processing algorithm to remove irrelevant information and excess background is described in the main paper. Figure below shows three examples of pre-processed images. It can be seen that the burned-in annotation with image types and the extra black background are removed in our pre-processed images. We generated 2 versions of the preprocesed images - 8 bit image and images with the original bit depth that was used to capture the image (found in the dicom metadata). This resulted in \mgm 12 bit images, \cbisddsm and VinDr as 16 bit images, in addition to the 8 bit images for all dataset.
-
-Our reason for 2 versions of the dataset was due to the reproducibility experiments. For [1,2] models, we passed our 8 bit preprocessed images as input, whereas for [3], we passed our maximum bit depth preprocessed images as input, i.e. 16 bit for CBIS, VinDr and 12 bit for MGM. The reason for this difference is [3] explicitly stated that they used 16 bit images, whereas, the other two papers did not, motivating us to choose the standard image bit depth used for input to neural networks. 
+We first converted the dicom to png format. We generated the png images with the original bit depth that was used to capture the image (found in the dicom metadata). This resulted in MGM 12 bit images, CBIS and VinDr as 16 bit images. Then, we preprocessed the images to remove irrelevant information and excess background (the algorithm is described in the main paper and the code is shared in the repository). Figure below shows three examples of pre-processed images. It can be seen that the burned-in annotation with image types and the extra black background are removed in our pre-processed images. 
 
 | ![view1.png](LCC-image-preprocessing.png) | 
 |:--:| 
 | *LCC* |
 | ![view2.png](LMLO-image-preprocessing.png) | 
 | *LMLO* |
-| ![view3.png](RMLO-imagepreprocessing.png) | 
+| ![view3.png](RMLO-image-preprocessing.png) | 
 | *RMLO* |
 
 ### References

@@ -35,7 +35,8 @@ regularization term $\beta = 0.000158489319246111$ <br/>
 **Data Augmentation:** We followed the data augmentation of Shen et al. (GMIC-ResNet18) described above under Single-instance Learning models. 
 
 ### General Settings
-For the val and test set, the images were only resized and normalized. The single channel of grayscale images was duplicated into 3 channels to fit pretrained models and normalized to ImageNet mean and standard deviation. For training from-scratch models, only the single grayscale channel was used as input and normalized to the range of [-1,1] [1].
+For the val and test set, the images were only resized and normalized. The single channel of grayscale images was duplicated into 3 channels to fit pretrained models and normalized to ImageNet mean and standard deviation. For training from-scratch models, only the single grayscale channel was used as input and normalized to the range of [-1,1] [1]. <br/>
+For Kim et al. [1] and Shu et al. [2], we used 8 bit preprocessed CBIS images as input. For Shen et al. [3], Wu et al. [4] and our MIL variants, we used our maximum bit depth preprocessed images as input, i.e. 16 bit for CBIS and VinDr, and 12 bit for MGM. The reason for this difference is [3] explicitly stated that they used 16 bit images, [2] used 8 bit images and [1] did not mention anything, motivating us to choose the standard image bit depth used for input to neural networks. 
 
 ### References
 
