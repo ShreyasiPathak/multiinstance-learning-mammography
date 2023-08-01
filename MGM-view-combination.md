@@ -1,1 +1,1 @@
-<embed src="/MGM-view-combination/view1.pdf"  type="application/pdf">
+<iframe width="100%" height="800" src="/MGM-view-combination/view1.pdf">
