@@ -1,5 +1,4 @@
 import torch
-import itertools
 import torch.nn as nn
 from torch import linalg as LA
 import torch.nn.functional as F
@@ -84,25 +83,13 @@ def loss_fn_gmic(config_params, logitloss, loss, y_local, y_global, y_fusion, sa
         weight_batch = torch.tensor([1,class_weights[0]]).to(config_params['device'])[y_true.long()]
         loss.weight = weight_batch
     local_network_loss = logitloss(y_local, y_true)
-    #print(local_network_loss)
-    #print(y_global.dtype, y_true.dtype)
-    #torch.set_printoptions(precision=10)
-    #print(y_global, (y_global > 1.).any())
-    #print(y_true)
     if config_params['activation'] == 'sigmoid': 
         y_global = torch.clamp(y_global, 0, 1)
         global_network_loss = loss(y_global, y_true)
     
     elif config_params['activation'] == 'softmax':
         global_network_loss = logitloss(y_global, y_true)
-    #print(global_network_loss)
     fusion_network_loss = logitloss(y_fusion, y_true)
-    #print(fusion_network_loss)
-    '''y_true_patch = list(map(lambda x: [1,0] if x else [0,0], y_true)) 
-    y_true_patch = torch.tensor(list(itertools.chain.from_iterable(y_true_patch))).to(config_params['device']).float()
-    #print("y_true_patch:", y_true_patch)
-    patch_loss = logitloss(y_patch, y_true_patch)
-    '''
     if config_params['learningtype'] == 'SIL':
         saliency_map_regularizer = torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1],-1), ord=1, dim=2))
     elif config_params['learningtype'] == 'MIL':

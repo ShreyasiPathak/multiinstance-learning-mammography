@@ -1,22 +1,15 @@
-import numpy as np
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
 import torch
-import cv2
-import matplotlib.cm as cm
-import torchvision
-from scipy import stats
-import math
+import numpy as np
+import pandas as pd
 import openpyxl as op
+import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-#from utilities import utils
-#from train_eval import test, mask_roi_match, evaluation
+from utilities import data_loaders_utils
+from train_eval import test, evaluation
 
-def imglabel_f1_plot(meanF1, stddev):
+def imglabel_f1_plot(meanF1, stddev, filename):
     fig = plt.figure(figsize=(14,16))
-    #plt.rcParams['font.size'] = 20
     x = np.arange(6)
     labels = ['IS-Mean$^{img}$','IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
     #plt.errorbar(x, meanF1, yerr=stddev, fmt = 'o')
@@ -26,7 +19,7 @@ def imglabel_f1_plot(meanF1, stddev):
     plt.xlabel('MIL models', fontsize=25)
     plt.ylabel('F1 score of image-level prediction using MIL models', fontsize=25)
     plt.yticks(fontsize=25)
-    plt.savefig('C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/IEEE-TMI/f1_attmodel_gt_imglabel.pdf', format='pdf')
+    plt.savefig(filename, format='pdf')
 
 def match_imagelevel_groundtruth_withattnwt(config_params, exam_name, attwt):
     #print(exam_name)
@@ -38,14 +31,6 @@ def match_imagelevel_groundtruth_withattnwt(config_params, exam_name, attwt):
     #print(df_grp[['StudyInstanceUID','Views','ImageLabel', 'CaseLabel','ModelAttwt']])
     y_true = df_grp['TrueImageLabel'].values.tolist()
     y_pred = df_grp['ModelAttwt'].values.tolist()
-    #y_pred = [1,1,1,1]
-    '''
-    if len(np.unique(df_grp['ImageLabel']))!=1:
-        corr, pval = stats.pointbiserialr(df_grp['TrueImageLabel'].values.tolist(), df_grp['ModelAttwt'].values.tolist())
-    else:
-        corr = None 
-        pval = None 
-    '''
     return y_true, y_pred
     
 def extract_img_attn_wts(config_params, img_attns):
@@ -88,7 +73,7 @@ def model_output(config_params, model, dataloader_test, df_test, path_to_results
             print("test batch:", test_batch.shape)
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
-                    loaded_image = utils.collect_images(config_params, df_test.loc[test_idx.item()])
+                    loaded_image = data_loaders_utils.collect_images(config_params, df_test.loc[test_idx.item()])
                     _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, _ = model(test_batch, eval_mode) # compute model output, loss and total train loss over one epoch
                     loaded_image = loaded_image[np.newaxis,:,:,:]
                     patch_locations = patch_locations[:,np.newaxis,:]
@@ -103,7 +88,7 @@ def model_output(config_params, model, dataloader_test, df_test, path_to_results
                         exam_name = df_test.loc[test_idx.item(), 'FolderName']
                     elif config_params['dataset'] == 'vindr':
                         exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
-                    loaded_image, _, _ = utils.collect_cases(config_params, df_test.loc[test_idx.item()])
+                    loaded_image, _, _ = data_loaders_utils.collect_cases(config_params, df_test.loc[test_idx.item()])
                     _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
             
             test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
@@ -116,13 +101,6 @@ def model_output(config_params, model, dataloader_test, df_test, path_to_results
                 y_true_all.extend(y_true)
                 y_pred_all.extend(y_pred)
                 count+=1
-                #print("corr, pval:", corr, pval)
-                '''if (corr is not None) and (not math.isnan(corr)):
-                    print(corr)
-                    corr_sum = corr_sum + corr
-                    pval_sum = pval_sum + pval
-                    count+=1
-                '''
     print("count:", count)
     y_true_all = np.array(y_true_all)
     y_pred_all = np.array(y_pred_all)
@@ -137,20 +115,13 @@ def model_output(config_params, model, dataloader_test, df_test, path_to_results
     per_model_metric = evaluation.aggregate_performance_metrics(config_params, y_true_all, y_pred_all, None)
     print(per_model_metric)
     evaluation.write_results_xlsx(per_model_metric, path_to_results, 'imglabel_confmat')
-    
-    '''print(corr_sum)
-    print(pval_sum)
-    
-    corr_sum = corr_sum/count
-    pval_sum = pval_sum/count 
-    print(corr_sum, pval_sum)'''
 
 def run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_test, df_test, path_to_results):
     path_to_trained_model = path_to_model
-    #model1 = test.load_model_for_testing(model, path_to_trained_model)
-    #model_output(config_params, model1, dataloader_test, df_test, path_to_results)
+    model1 = test.load_model_for_testing(model, path_to_trained_model)
+    model_output(config_params, model1, dataloader_test, df_test, path_to_results)
 
-
-meanF1 = [0.52, 0.75, 0.75, 0.75, 0.72, 0.82]
-stddev = [0, 0.03, 0.02, 0.01, 0, 0.04]
-imglabel_f1_plot(meanF1, stddev)
+#filename = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/IEEE-TMI/f1_attmodel_gt_imglabel.pdf'
+#meanF1 = [0.52, 0.75, 0.75, 0.75, 0.72, 0.82]
+#stddev = [0, 0.03, 0.02, 0.01, 0, 0.04]
+#imglabel_f1_plot(meanF1, stddev, filename)

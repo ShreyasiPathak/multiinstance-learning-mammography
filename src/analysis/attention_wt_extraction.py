@@ -1,20 +1,10 @@
 import torch
 import numpy as np
 import pandas as pd
-import openpyxl as op
-import torch.nn as nn
-
 import pickle
-import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from torchvision import transforms
-from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
-from openpyxl import Workbook
 
-from utilities import utils
-from train_eval import loss_function, evaluation, test
+from train_eval import loss_function, test
 
 activation_feature = {}
 def get_activation(name):

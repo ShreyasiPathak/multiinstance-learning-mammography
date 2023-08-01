@@ -1,15 +1,10 @@
 import torch
-import itertools
 import numpy as np
 import openpyxl as op
-import pandas as pd
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn import metrics
-
-from utilities import utils
 
 def results_store_excel(train_res, val_res, test_res, per_model_metrics, correct_train, total_images_train, train_loss, correct_test, total_images_test, test_loss, epoch, conf_mat_train, conf_mat_test, lr, auc_val, path_to_results, path_to_results_text):
     lines = [epoch+1, lr]

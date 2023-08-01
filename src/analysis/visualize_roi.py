@@ -7,8 +7,9 @@ import cv2
 import matplotlib.cm as cm
 import torchvision
 
-from utilities import utils
-from train_eval import test, mask_roi_match, imagelabel_attwt_match
+from utilities import data_loaders_utils, gmic_utils
+from train_eval import test
+from analysis import mask_roi_match, imagelabel_attwt_match
 
 def visualize_example(config_params, input_img_case, saliency_maps_case, true_segs,
                       patch_locations_case, patch_img_case, patch_attentions_case,
@@ -73,26 +74,15 @@ def visualize_example(config_params, input_img_case, saliency_maps_case, true_se
         subfigure = figure.add_subplot(len(views_names), total_num_subplots, view_id*9 + 2)
         subfigure.imshow(input_img[0, 0, :, :], aspect='equal', cmap='gray')
         resized_cam_malignant = cv2.resize(saliency_maps[0,0,:,:], (W, H))
-        #print(alpha_red)
-        #print(resized_cam_malignant)
-        #input('wait1')
         subfigure.imshow(resized_cam_malignant, cmap=alpha_red, clim=[0.0, 1.0])
         subfigure.set_title("SM: malignant")
         subfigure.axis('off')
-        '''
-        subfigure = figure.add_subplot(1, total_num_subplots, 3)
-        subfigure.imshow(input_img[0, 0, :, :], aspect='equal', cmap='gray')
-        resized_cam_benign = cv2.resize(saliency_maps[0,0,:,:], (W, H))
-        subfigure.imshow(resized_cam_benign, cmap=alpha_green, clim=[0.0, 1.0])
-        subfigure.set_title("SM: benign")
-        subfigure.axis('off')
-        '''
         
         # patch map
         subfigure = figure.add_subplot(len(views_names), total_num_subplots, view_id*9 + 3)
         subfigure.imshow(input_img[0, 0, :, :], aspect='equal', cmap='gray')
         cm.YlGnBu.set_under('w', alpha=0)
-        crop_mask = utils.get_crop_mask(
+        crop_mask = gmic_utils.get_crop_mask(
             patch_locations[0, np.arange(parameters["K"]), :],
             parameters["crop_shape"], (H, W),
             "upper_left")
@@ -166,14 +156,14 @@ def seg_evaluation(config_params, input_img_case, patch_locations_case, patch_im
                 print("in visualize roi:", image_name)
 
             if config_params['dataset'] == 'cbis-ddsm':
-                iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax)
+                iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images_cbis(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax)
             elif config_params['dataset'] == 'vindr':
                 iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images_vindr(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax)
             if iou_view_each_roi!=[]:
                 iou_any_roi_max.append(max(iou_view_each_roi)) # max IOU for any of the ROIs
                 iou_all_roi_mean = iou_all_roi_mean + iou_view_each_roi #average for all ROIs in one view 
                 iou_any_roi_highestattnwt.append(max(iou_highestattnwt_each_roi)) #V, R
-    
+    #bounding box 
     '''if iou_any_roi_max!=[]:
         for ax1 in ax:
             if not ax1.get_images(): 
@@ -189,9 +179,6 @@ def seg_evaluation(config_params, input_img_case, patch_locations_case, patch_im
 
 def model_output(config_params, model, dataloader_test, df_test):
     model.eval()
-    #print(df_test.loc[df_test['ShortPath']=='Mass-Test_P_00116'])
-    #print(df_test['ShortPath'])
-    #input('halt')
     eval_mode = True
     iou_sum_any_roi = 0
     iou_sum_all_roi = 0
@@ -203,89 +190,88 @@ def model_output(config_params, model, dataloader_test, df_test):
     df_dsc = {}
     with torch.no_grad():
         for test_idx, test_batch, test_labels, views_names in dataloader_test:
-            #if 'Mass-Test_P_00942' in df_test.loc[test_idx.item(),'ShortPath']:
-            if '1.2.826.0.1.3680043.2.526.11.40.1608721769240233.1231594.1756724_6002394481' == df_test.loc[test_idx.item(),'ShortPath'].split('/')[-1]:
-                test_batch, test_labels = test_batch.to(config_params['device']), test_labels.to(config_params['device'])
-                test_labels = test_labels.view(-1)
-                print("test idx:", test_idx.item())
-                print("test batch:", test_batch.shape)
-                if config_params['femodel'] == 'gmic_resnet18':
-                    if config_params['learningtype'] == 'SIL':
-                        loaded_image = utils.collect_images(config_params, df_test.loc[test_idx.item()])
-                        _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, _ = model(test_batch, eval_mode) # compute model output, loss and total train loss over one epoch
-                        #print(output_batch_fusion.shape)
-                        #print(saliency_map.shape)
-                        loaded_image = loaded_image[np.newaxis,:,:,:]
-                        patch_locations = patch_locations[:,np.newaxis,:]
-                        patch_imgs = patch_imgs[:,np.newaxis,:]
-                        patch_attns = patch_attns[:,np.newaxis,:]
-                        saliency_map = saliency_map[:, np.newaxis, :, :, :]
-                        img_attns = None
-                        exam_name = df_test.loc[test_idx.item(), 'ImageName']
+            test_batch, test_labels = test_batch.to(config_params['device']), test_labels.to(config_params['device'])
+            test_labels = test_labels.view(-1)
+            print("test idx:", test_idx.item())
+            print("test batch:", test_batch.shape)
+            if config_params['femodel'] == 'gmic_resnet18':
+                if config_params['learningtype'] == 'SIL':
+                    loaded_image = data_loaders_utils.collect_images(config_params, df_test.loc[test_idx.item()])
+                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, _ = model(test_batch, eval_mode) # compute model output, loss and total train loss over one epoch
+                    #print(output_batch_fusion.shape)
+                    #print(saliency_map.shape)
+                    loaded_image = loaded_image[np.newaxis,:,:,:]
+                    patch_locations = patch_locations[:,np.newaxis,:]
+                    patch_imgs = patch_imgs[:,np.newaxis,:]
+                    patch_attns = patch_attns[:,np.newaxis,:]
+                    saliency_map = saliency_map[:, np.newaxis, :, :, :]
+                    img_attns = None
+                    exam_name = df_test.loc[test_idx.item(), 'ImageName']
 
-                    elif config_params['learningtype'] == 'MIL':
-                        if config_params['dataset'] == 'cbis-ddsm':
-                            exam_name = df_test.loc[test_idx.item(), 'FolderName']
-                        elif config_params['dataset'] == 'vindr':
-                            exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
-                        loaded_image, _, _ = utils.collect_cases(config_params, df_test.loc[test_idx.item()])
-                        _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
+                elif config_params['learningtype'] == 'MIL':
+                    if config_params['dataset'] == 'cbis-ddsm':
+                        exam_name = df_test.loc[test_idx.item(), 'FolderName']
+                    elif config_params['dataset'] == 'vindr':
+                        exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
+                    loaded_image, _, _ = data_loaders_utils.collect_cases(config_params, df_test.loc[test_idx.item()])
+                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
+        
+            test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+            #print(loaded_image)
+            #if test_labels.item() == test_pred.item() == 1:
+            saliency_maps = saliency_map.cpu().numpy()
+            #print(saliency_maps[0,0,0,:,:])
+            #print(saliency_maps.shape) #(1, 4, 1, 92, 60)
+            #print(patch_locations.shape) #1, 4, 6, 2
+            #print(patch_imgs.shape) #1, 4, 6, 256, 256
+            #print(patch_attns.shape) #1, 4, 6
+            #print("loaded image:", loaded_image[0].shape)
+            #print(loaded_image[1].shape)
+            #print(img_attns.shape) #1,4,1
+            #input('wait')
+            try:
+                img_attns = imagelabel_attwt_match.extract_img_attn_wts(config_params, img_attns)
+            except:
+                pass
+            patch_attentions = patch_attns[0, :, :].data.cpu().numpy()
             
-                test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                #print(loaded_image)
-                #if test_labels.item() == test_pred.item() == 1:
-                saliency_maps = saliency_map.cpu().numpy()
-                #print(saliency_maps[0,0,0,:,:])
-                #print(saliency_maps.shape) #(1, 4, 1, 92, 60)
-                #print(patch_locations.shape) #1, 4, 6, 2
-                #print(patch_imgs.shape) #1, 4, 6, 256, 256
-                #print(patch_attns.shape) #1, 4, 6
-                #print("loaded image:", loaded_image[0].shape)
-                #print(loaded_image[1].shape)
-                #print(img_attns.shape) #1,4,1
-                #input('wait')
-                try:
-                    #if config_params['attention'] == 'imagewise':
-                    #    img_attns = img_attns.view(img_attns.shape[0], -1).data.cpu().numpy()
-                    img_attns = imagelabel_attwt_match.extract_img_attn_wts(config_params, img_attns)
-                except:
-                    pass
-                patch_attentions = patch_attns[0, :, :].data.cpu().numpy()
-                
-                #filename = view_name+'_'+df_test.loc[test_idx.item(), 'ShortPath'].split('/')[-1]
-                filename = df_test.loc[test_idx.item(), 'ShortPath'].split('/')[-1]
-                if not os.path.exists(os.path.join(config_params['path_to_output'], "visualization")):
-                    os.mkdir(os.path.join(config_params['path_to_output'], "visualization"))
-                if not os.path.exists(os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant")):
-                    os.mkdir(os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant"))
-                save_dir = os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant", "{0}.pdf".format(filename))
-                #print(save_dir)
-                visualize_example(config_params, loaded_image, saliency_maps, [None, None], patch_locations, patch_imgs, patch_attentions, img_attns, save_dir, config_params['gmic_parameters'], views_names, test_labels.item(), test_pred.item())
-                input('halt')
-                print("exam name:", exam_name)
-                iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'IOU')
-                dsc_any_roi_max, dsc_all_roi_mean, dsc_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'DSC')
-                if iou_any_roi_max!=[]:
-                    df_iou[exam_name] = [exam_name, iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt]
-                    iou_sum_any_roi = iou_sum_any_roi + iou_any_roi_max
-                    iou_sum_all_roi = iou_sum_all_roi + iou_all_roi_mean
-                    iou_sum_any_roi_hattnwt = iou_sum_any_roi_hattnwt + iou_any_roi_max_highestattnwt
-                print("iou exam any roi iou:", iou_any_roi_max)
-                #print("iou exam all roi iou:", iou_all_roi_mean)
-                #print("iou exam any roi dsc:", iou_any_roi_max)
-                #print("iou exam all roi dsc:", iou_all_roi_mean)
+            #filename = view_name+'_'+df_test.loc[test_idx.item(), 'ShortPath'].split('/')[-1]
+            filename = df_test.loc[test_idx.item(), 'ShortPath'].split('/')[-1]
+            if not os.path.exists(os.path.join(config_params['path_to_output'], "visualization")):
+                os.mkdir(os.path.join(config_params['path_to_output'], "visualization"))
+            if not os.path.exists(os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant")):
+                os.mkdir(os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant"))
+            save_dir = os.path.join(config_params['path_to_output'], "visualization", "malignant-to-malignant", "{0}.pdf".format(filename))
+            
+            #for visualization the case and ROI candidates; comment the line below if you don't want to visualize it.
+            visualize_example(config_params, loaded_image, saliency_maps, [None, None], patch_locations, patch_imgs, patch_attentions, img_attns, save_dir, config_params['gmic_parameters'], views_names, test_labels.item(), test_pred.item())
+            input('halt')
+            print("exam name:", exam_name)
+            
+            #for calculating the intersection over union and dice similarity score of ROI candidates with the groundtruth ROI.
+            iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'IOU')
+            dsc_any_roi_max, dsc_all_roi_mean, dsc_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'DSC')
+            if iou_any_roi_max!=[]:
+                df_iou[exam_name] = [exam_name, iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt]
+                iou_sum_any_roi = iou_sum_any_roi + iou_any_roi_max
+                iou_sum_all_roi = iou_sum_all_roi + iou_all_roi_mean
+                iou_sum_any_roi_hattnwt = iou_sum_any_roi_hattnwt + iou_any_roi_max_highestattnwt
+            print("iou exam any roi iou:", iou_any_roi_max)
+            #print("iou exam all roi iou:", iou_all_roi_mean)
+            #print("iou exam any roi dsc:", iou_any_roi_max)
+            #print("iou exam all roi dsc:", iou_all_roi_mean)
 
-                if dsc_any_roi_max!=[]:
-                    df_dsc[exam_name] = [exam_name, dsc_any_roi_max, dsc_all_roi_mean, dsc_any_roi_max_highestattnwt]
-                    dsc_sum_any_roi = dsc_sum_any_roi + dsc_any_roi_max
-                    dsc_sum_all_roi = dsc_sum_all_roi + dsc_all_roi_mean
-                    dsc_sum_any_roi_hattnwt = iou_sum_any_roi_hattnwt + dsc_any_roi_max_highestattnwt
-                print("dsc exam any roi:", dsc_any_roi_max)
-                #print("dsc exam all roi:", dsc_all_roi_mean)
-                #print("dsc exam any roi:", dsc_any_roi_max)
-                #print("dsc exam all roi:", dsc_all_roi_mean)
-                print(test_labels, test_pred)
-                #input('halt')
+            if dsc_any_roi_max!=[]:
+                df_dsc[exam_name] = [exam_name, dsc_any_roi_max, dsc_all_roi_mean, dsc_any_roi_max_highestattnwt]
+                dsc_sum_any_roi = dsc_sum_any_roi + dsc_any_roi_max
+                dsc_sum_all_roi = dsc_sum_all_roi + dsc_all_roi_mean
+                dsc_sum_any_roi_hattnwt = iou_sum_any_roi_hattnwt + dsc_any_roi_max_highestattnwt
+            print("dsc exam any roi:", dsc_any_roi_max)
+            #print("dsc exam all roi:", dsc_all_roi_mean)
+            #print("dsc exam any roi:", dsc_any_roi_max)
+            #print("dsc exam all roi:", dsc_all_roi_mean)
+            print(test_labels, test_pred)
+            #input('halt')
     df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['ImageName', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
     df_img_iou.to_csv(os.path.join(config_params['path_to_output'], "iou_score_test_set.csv"), sep=';',na_rep='NULL',index=False)
     iou_avg_any_roi = iou_sum_any_roi/df_img_iou.shape[0]

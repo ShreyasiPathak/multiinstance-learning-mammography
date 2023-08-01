@@ -9,10 +9,9 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-from utilities import utils
 from train_eval import loss_function, evaluation
 
-def load_model_for_testing(model,path):
+def load_model_for_testing(model, path):
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['state_dict'])
     print("checkpoint epoch and loss:", checkpoint['epoch'], checkpoint['loss'])
@@ -152,8 +151,8 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
         evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
         evaluation.classspecific_performance_metrics(config_params, test_labels_all.cpu().numpy(),test_pred_all.cpu().numpy(), output_all_ten.cpu().numpy(), path_to_results_xlsx, 'test_results')
     
-        #if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL' and (config_params['dataset'] == 'zgt' or config_params['dataset'] == 'cbis-ddsm'):
-        #    evaluation.write_results_viewwise(config_params, path_to_results_xlsx, 'metrics_view_wise', count_dic_viewwise)
+        if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL' and (config_params['dataset'] == 'zgt' or config_params['dataset'] == 'cbis-ddsm'):
+            evaluation.write_results_viewwise(config_params, path_to_results_xlsx, 'metrics_view_wise', count_dic_viewwise)
         
         if eval_subgroup:
             evaluation.results_breastdensity(config_params, df_test, test_labels_all.cpu().numpy(), test_pred_all.cpu().numpy(), output_all_ten.cpu().numpy(), path_to_results_xlsx)
@@ -163,18 +162,8 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
         if config_params['learningtype'] == 'SIL':
             evaluation.case_label_from_SIL(config_params, df_test, test_labels_all.cpu().numpy(), test_pred_all.cpu().numpy(), path_to_results_xlsx)
             #evaluation.write_results_xlsx(per_model_metrics_caselevel, path_to_results_xlsx, 'test_results')
-            
-            #return per_model_metrics, conf_mat_test, per_model_metrics_caselevel
-    #else:
-        #return per_model_metrics, conf_mat_test
 
 def run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname):
     path_to_trained_model = path_to_model
     model1 = load_model_for_testing(model, path_to_trained_model)
     test(config_params, model1, dataloader_test, batches_test,  df_test, path_to_results_xlsx, sheetname)
-    #if config_params['learningtype'] == 'SIL':
-        #per_model_metrics_test, conf_mat_test, per_model_metrics_caselevel = test(config_params, model1, dataloader_test, batches_test,  df_test, path_to_results_xlsx)
-        #return per_model_metrics_test, conf_mat_test, per_model_metrics_caselevel
-    #else:
-        #per_model_metrics_test, conf_mat_test = test(config_params, model1, dataloader_test, batches_test,  df_test, path_to_results_xlsx)
-        #return per_model_metrics_test, conf_mat_test

@@ -1,16 +1,11 @@
 import os
-import re
 import cv2
 import math
-import torchvision
 import numpy as np
-import torch
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import matplotlib.patches as patches
 
-from utilities import utils
+from utilities import data_augmentation_utils, gmic_utils
 
 def create_mask_file(filepath_roiloc, filepath_newimagesize):
     """
@@ -134,10 +129,10 @@ def extract_patch_position_wrt_image(original_img_pytorch, crop_shape, crop_posi
         max_x = int(np.round(crop_x + x_delta))
 
     # make sure that the crops are in range
-    min_y = utils.make_sure_in_range(min_y, 0, H)
-    max_y = utils.make_sure_in_range(max_y, 0, H)
-    min_x = utils.make_sure_in_range(min_x, 0, W)
-    max_x = utils.make_sure_in_range(max_x, 0, W)
+    min_y = gmic_utils.make_sure_in_range(min_y, 0, H)
+    max_y = gmic_utils.make_sure_in_range(max_y, 0, H)
+    min_x = gmic_utils.make_sure_in_range(min_x, 0, W)
+    max_x = gmic_utils.make_sure_in_range(max_x, 0, W)
 
     if (max_y - min_y) < y_delta:
         gap = y_delta - (max_y - min_y)
@@ -157,7 +152,7 @@ def extract_patch_position_wrt_image(original_img_pytorch, crop_shape, crop_posi
 
     return patch_position
 
-def match_to_mask_images(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax):
+def match_to_mask_images_cbis(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax):
     """
     Function to calculate how much does the patch extracted by the model match to the true ROI 
     """
@@ -190,7 +185,7 @@ def match_to_mask_images(config_params, original_image, exam_name, model_patch_a
         #correcting mask size: original to preprocessed (cleaning algo) to resize (2944x1920)
         true_mask_image = cv2.imread(mask_path+'/'+roi_folder+'/'+'1-2.png') 
         true_mask_image = true_mask_image[df_img_size['pro_min_y'].item():df_img_size['pro_max_y'].item(), df_img_size['pro_min_x'].item():df_img_size['pro_max_x'].item()]
-        true_mask_image = utils.myhorizontalflip(true_mask_image, df_img_size['BreastSide'].item())
+        true_mask_image = data_augmentation_utils.myhorizontalflip(true_mask_image, df_img_size['BreastSide'].item())
         true_mask_image = cv2.resize(true_mask_image, dsize=(config_params['resize'][1], config_params['resize'][0]))
         x,y,w,h = cv2.boundingRect(true_mask_image[:,:,0])
         true_mask_loc = [x,y,x+w,y+h]
@@ -250,7 +245,7 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
                 #plt.imsave('./mask.png', true_mask_image, cmap='gray')
                 true_mask_image = true_mask_image * 255
                 true_mask_image = true_mask_image[roi_row['pro_min_y'].item():roi_row['pro_max_y'].item(), roi_row['pro_min_x'].item():roi_row['pro_max_x'].item()]
-                true_mask_image = utils.myhorizontalflip(true_mask_image, roi_row['laterality'])
+                true_mask_image = data_augmentation_utils.myhorizontalflip(true_mask_image, roi_row['laterality'])
                 #plt.imsave('./mask_hf.png', true_mask_image, cmap='gray')
                 true_mask_image = cv2.resize(true_mask_image, dsize=(config_params['resize'][1], config_params['resize'][0]))
                 #plt.imsave('./mask_rs.png', true_mask_image, cmap='gray')

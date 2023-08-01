@@ -3,15 +3,14 @@
 Created on Sat Apr  9 15:17:37 2022
 
 @author: PathakS
+
+Functions in this script taken from Wu et al. repository
 """
 
 import torch
-from torch import Tensor
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
 from torchvision.models.resnet import conv3x3
-#from torchinfo import summary
 
 class SplitBreastModel(nn.Module):
     def __init__(self, config_params):

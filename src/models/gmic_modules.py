@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from utilities import utils
+from utilities import gmic_utils
 from torchvision.models.resnet import conv3x3
 
 
@@ -385,9 +385,9 @@ class RetrieveROIModule(AbstractMILUnit):
         current_images = normalize_images.sum(dim=1, keepdim=True)
 
         for _ in range(self.num_crops_per_class):
-            max_pos = utils.get_max_window(current_images, crop_shape_adjusted, "avg")
+            max_pos = gmic_utils.get_max_window(current_images, crop_shape_adjusted, "avg")
             all_max_position.append(max_pos)
-            mask = utils.generate_mask_uplft(current_images, crop_shape_adjusted, max_pos, self.gpu_number)
+            mask = gmic_utils.generate_mask_uplft(current_images, crop_shape_adjusted, max_pos, self.gpu_number)
             current_images = current_images * mask
         return torch.cat(all_max_position, dim=1).data.cpu().numpy()
 

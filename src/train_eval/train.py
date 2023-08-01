@@ -24,9 +24,10 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
-from train_eval import test, optimization, loss_function, evaluation, data_loader, attention_wt_extraction, visualize_roi, featurevector_hook, imagelabel_attwt_match
+from train_eval import test, optimization, loss_function, evaluation, data_loader
+from analysis import attention_wt_extraction, visualize_roi, featurevector_hook, imagelabel_attwt_match
 from models import sil_mil_model, wu_resnet
-from utilities import pytorchtools, utils
+from utilities import pytorchtools, utils, dynamic_training_utils
 from setup import read_config_file, read_input_file, output_files_setup
 
 #import tensorboard_log
@@ -119,7 +120,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             print("train batch:", train_batch.shape, flush=True)
 
             if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
-                model, optimizer, state_before_optim, lr_before_optim = utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
+                model, optimizer, state_before_optim, lr_before_optim = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
             
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
@@ -182,7 +183,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             batch_no=batch_no+1
 
             if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
-                model, optimizer = utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
+                model, optimizer = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
 
             '''weights_after_backprop = [] # weights after backprop
             for name, param in model.named_parameters():
@@ -385,12 +386,6 @@ if __name__=='__main__':
         
         if config_params['usevalidation']:
             path_to_model, path_to_results_xlsx, path_to_results_text, path_to_learning_curve, path_to_log_file, path_to_hyperparam_search = output_files_setup.output_files(config_file, config_params, num_config_start, num_config_end)
-            #path_to_model = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/model_8_24.tar"
-            #path_to_results_xlsx = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/result_8_24.xlsx"
-            #path_to_results_text = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/result_8_24.txt"
-            #path_to_learning_curve = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/learningcurve_8_24.png"
-            #path_to_log_file = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/log_8_24.txt"
-            #path_to_hyperparam_search = "/homes/spathak/multiview_mammogram/models_results/zgt/ijcai23/modelid1_attentionimagewise_milpoolingesatt_viewsinclusionstandard_femodelgmic_resnet18_learningtypeMIL/hyperparamsearch_1-2_8_24.xlsx"
             df_train, df_val, df_test, batches_train, batches_val, batches_test, view_group_indices_train = read_input_file.input_file_creation(config_params)
             dataloader_train, dataloader_val, dataloader_test = data_loader.dataloader(config_params, df_train, df_val, df_test, view_group_indices_train, g)
         else:
@@ -416,26 +411,17 @@ if __name__=='__main__':
             ##hyperparam_details = [config_file.split('/')[-1], config_params['lr'], config_params['wtdecay'], config_params['sm_reg_param'], config_params['trainingmethod'], config_params['optimizer'], config_params['patienceepochs'], config_params['batchsize']] + per_model_metrics_val
             #evaluation.write_results_xlsx(hyperparam_details, path_to_hyperparam_search, 'hyperparam_results')
         '''
+        
         #test the model
         print(df_test['Views'].str.split('+').str.len().groupby())
         test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results')
-        #if config_params['learningtype'] == 'SIL':
-            #per_model_metrics_test, conf_mat_test, per_model_metrics_test_case = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
-            #evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
-            #evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
-            #evaluation.write_results_xlsx(per_model_metrics_test_case, path_to_results_xlsx, 'test_results')
-        #else:
-            #per_model_metrics_test, conf_mat_test = test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx)
-            #evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
-            #evaluation.write_results_xlsx(per_model_metrics_test, path_to_results_xlsx, 'test_results')
-        
         
         #save attention weights
         #path_to_attentionwt = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"
         #print(path_to_attentionwt)
         #attention_wt_extraction.save_attentionwt(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_attentionwt)
 
-        #visualize saliency maps
+        #visualize saliency maps and ROI candidates
         #visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test)
 
         #match image labels to attention weights
@@ -446,15 +432,6 @@ if __name__=='__main__':
         print(path_to_featurevector)
         #featurevector_hook.save_featurevector(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_featurevector)
         featurevector_hook.visualize_feature_maps(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_featurevector)
-        '''
-        '''except Exception as err:
-            print("Exception encountered:",err)
-            #save the results
-            wb.save(path_to_results)
-        
-            #plot the training and validation loss and accuracy
-            #df=pd.read_excel(path_to_results)
-            #results_plot(df,file_name)
         '''
         
         f = open(path_to_log_file,'a')

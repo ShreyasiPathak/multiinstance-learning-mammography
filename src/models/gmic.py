@@ -24,11 +24,9 @@ Module that define the core logic of GMIC
 import torch
 import torch.nn as nn
 import numpy as np
-
 from torchvision._internally_replaced_utils import load_state_dict_from_url
-import matplotlib.pyplot as plt
 
-from utilities import utils
+from utilities import data_augmentation_utils, gmic_utils
 from models import gmic_modules as m
 
 
@@ -65,7 +63,7 @@ class GMIC(nn.Module):
         self.retrieve_roi_crops = m.RetrieveROIModule(self.experiment_parameters, self)
 
         # detection network
-        self.roitransform = utils.ROIRotateTransform([0, 90, 180, 270])
+        self.roitransform = data_augmentation_utils.ROIRotateTransform([0, 90, 180, 270])
         self.local_network = m.LocalNetwork(self.experiment_parameters, self)
         self.local_network.add_layers()
 
@@ -121,7 +119,7 @@ class GMIC(nn.Module):
             output = output.cuda().to(device)
         for i in range(batch_size):
             for j in range(num_crops):
-                utils.crop_pytorch(x_original_pytorch[i, 0, :, :], 
+                gmic_utils.crop_pytorch(x_original_pytorch[i, 0, :, :], 
                                    self.experiment_parameters["crop_shape"], 
                                    crop_positions[i,j,:], 
                                    output[i,j,:,:],

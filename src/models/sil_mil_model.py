@@ -3,8 +3,6 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from torchvision import models
-
-
 import torchvision
 from torchvision.models.resnet import BasicBlock
 import warnings
@@ -718,16 +716,6 @@ class MILmodel(nn.Module):
             h_all = [h_all_local, h_all_global, h_all_fusion, all_saliency_map, all_patch_locations, all_patches, all_patch_attns, all_patch_features, all_global_vec]
         
         return h_all
-    
-    '''def capture_saliency_map(self, h, views_names):
-        for counter, view in enumerate(views_names):
-            if self.featureextractormodel == 'gmic_resnet18':
-                if counter==0:
-                    all_saliency_map = h[view][3].unsqueeze(1)
-                else:
-                    all_saliency_map = torch.cat((all_saliency_map, h[view][3].unsqueeze(1)), dim=1)
-        return all_saliency_map
-    '''
 
     def batched_index_select(self, input, dim, index):
         for ii in range(1, len(input.shape)):
@@ -754,9 +742,6 @@ class MILmodel(nn.Module):
         h_all = self.capture_views(h, views_names)
         
         if self.attention=='imagewise':
-            #if self.featureextractormodel == 'gmic_resnet18':
-            #    all_saliency_map = h_all[3]
-
             if self.dependency == 'selfatt':
                 if len(views_names)>1:
                     #print('before:',h_all[0].shape)
@@ -777,10 +762,6 @@ class MILmodel(nn.Module):
             elif self.milpooling=='ismax':
                 if self.featureextractormodel == 'gmic_resnet18':
                     y_local, y_global, y_fusion = self.milpooling_block.ISMax_gmic(h_all, views_names)
-                    #x_local = self.milpooling_block.ISMax('local', h_all[0], views_names)
-                    #x_global = self.milpooling_block.ISMax('global', h_all[1], views_names)
-                    #x_fusion = self.milpooling_block.ISMax('fusion', h_all[2], views_names)
-                    #print(x_fusion.shape)
                     att_fusion = None
                 else:
                     y_pred = self.milpooling_block.ISMax(None, h_all, views_names)
@@ -798,11 +779,7 @@ class MILmodel(nn.Module):
                 if self.featureextractormodel == 'gmic_resnet18':
                     #print('h_all in esatt:', h_all[0].shape)
                     y_local, att_local = self.milpooling_block.ESAtt('local', h_all[0], views_names)
-                    #y_global, att_global = self.milpooling_block.ISAtt_local('global', h_all[1], att_local, views_names)
-                    #y_global, att_global = self.milpooling_block.ISAtt_global('global', h_all[1], h_all[9], views_names) #attention score from topt_feature_before_sigmoid
-                    #y_global, att_global = self.milpooling_block.ISAtt_global('global', h_all[1], h_all[8], views_names) #attention score from global vector
                     y_global, att_global = self.milpooling_block.ESAtt('global', h_all[1], views_names) #attention score from topt_feature_sigmoid
-                    #y_global = self.milpooling_block.ISMean('global', h_all[1], views_names)
                     y_fusion, att_fusion = self.milpooling_block.ESAtt('fusion', h_all[2], views_names)
                 else:
                     y_pred, att_fusion = self.milpooling_block.ESAtt(None, h_all, views_names)
@@ -847,31 +824,6 @@ class MILmodel(nn.Module):
         print("att local shape:", att_local.shape)
         print("patch attention:", h_all[6])
         '''
-        '''if att_local is not None: 
-            patch_attn_global = h_all[6] * att_local.view(att_local.shape[0], att_local.shape[2])[:, :, None] #h_local attn * patch attn -> global patch attn
-        else:
-            patch_attn_global = h_all[6]
-        
-        h_all_patch_flatten = torch.flatten(h_all[7], start_dim=1, end_dim=2)
-        
-        topk_index_highest = torch.topk(torch.flatten(patch_attn_global, start_dim=1), k=1, largest=True, dim=1)[1]
-        topk_patch_highest = self.batched_index_select(h_all_patch_flatten.to(self.device), 1, topk_index_highest)
-        topk_index_lowest = torch.topk(torch.flatten(patch_attn_global, start_dim=1), k=1, largest = False, dim=1)[1]
-        topk_patch_lowest = self.batched_index_select(h_all_patch_flatten.to(self.device), 1, topk_index_lowest)
-        y_patch = self.patch_classifer(torch.cat((topk_patch_highest, topk_patch_lowest), dim=1)).view(-1)
-        '''
-        '''
-        print("patch attn global:", patch_attn_global, patch_attn_global.shape)
-        print("topk index:", topk_index_highest)
-        print("patch all shape:", h_all[5].shape)
-        print("flatten shape:", h_all_patch_flatten.shape)
-        print("h_all patch:", h_all_patch_flatten[:,topk_index_highest[0],:,:])
-        print("topk patch highest:", topk_patch_highest)
-        print("topk index lowest:", topk_index_lowest)
-        print("h_all patch lowest:", h_all_patch_flatten[:,topk_index_lowest[0],:,:])
-        print("topk patch lowest:", topk_patch_lowest)
-        input('halt')'''
-        
         y_patch = None
 
         if self.featureextractormodel == 'gmic_resnet18':
@@ -935,14 +887,10 @@ class FourViewResNet(nn.Module):
 
     def single_forward(self, single_view, eval_mode):
         if self.featureextractormodel == 'gmic_resnet18':
-            #local_feature, topt_feature_global, y_global, fusion_feature, saliency_map = self.feature_extractor(single_view)
-            #single_view_feature = [local_feature, topt_feature_global.squeeze(1), fusion_feature, saliency_map]
             local_feature, topt_feature_global, y_global, fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec = self.feature_extractor(single_view, eval_mode)
             #print(topt_feature_global.shape) # N,3,110
             single_view_feature = [local_feature, topt_feature_global.squeeze(1), fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec]
         else:
             single_view_feature = self.feature_extractor(single_view)
             #print(single_view_feature.shape)
-            #single_view_feature = single_view_feature.view(single_view_feature.shape[0], single_view_feature.shape[1])
-        #print(single_view_feature.shape)
         return single_view_feature
