@@ -1,1 +1,2 @@
-<iframe width="100%" height="800" src="/MGM-view-combination/view1.pdf">
+<object data="/MGM-view-combination/view1.pdf" type="application/pdf" width="100%">
+</object>
