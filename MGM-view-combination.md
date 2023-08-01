@@ -9,14 +9,10 @@ Figures below shows the image distribution across cases for all bag sizes in MGM
 | ![view3.png](/MGM-view-combination/view3.png) | 
 | *Image combinations for bag size 3 (#cases: 311)* |
 | ![view4.png](/MGM-view-combination/view4.png) | 
-|:--:| 
 | *Image combinations for bag size 4 (#cases: 17237)* |
 | ![view5.png](/MGM-view-combination/view5.png) | 
-|:--:| 
 | *Image combinations for bag size 5 (#cases: 1813)* |
 | ![view6.png](/MGM-view-combination/view6.png) | 
-|:--:| 
 | *Image combinations for bag size 6 (#cases: 584)* |
 | ![view7.png](/MGM-view-combination/view7.png) | 
-|:--:| 
 | *Image combinations for bag size 7 (#cases: 7)* |
