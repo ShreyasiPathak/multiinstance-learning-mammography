@@ -1,2 +1,7 @@
-<object data="/MGM-view-combination/view1.pdf" type="application/pdf" width="100%">
-</object>
+<img src="/MGM-view-combination/view1.png" alt="view1" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view2.png" alt="view2" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view3.png" alt="view3" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view4.png" alt="view4" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view5.png" alt="view5" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view6.png" alt="view6" style="height: 300px; width:150px;"/>
+<img src="/MGM-view-combination/view7.png" alt="view7" style="height: 300px; width:150px;"/>
