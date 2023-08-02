@@ -1,8 +1,8 @@
-# multiinstance-learning-mammography
+## Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
 
 This is a the code base of case-level breast cancer prediction using mammography. You can pass any number of images per case to our model, and the model will predict malignant or benign, along with a saliency map for each image and 6 candidate ROIs.
 
-# Prerequisites
+## Prerequisites
 - Python 3.9.15
 - Pytorch 1.11.0+cu113
 - Cuda 11.3
@@ -13,12 +13,12 @@ This is a the code base of case-level breast cancer prediction using mammography
 - scikit-learn 1.0.2
 - seaborn 0.11.2
 
-# Dataset
+## Dataset
 We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) and MGM (private dataset). We provide instructions on how to train and test our model on the 2 public datasets CBIS can be downloaded from this website: https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=22516629
 VinDr can be downloaded from this website: https://vindr.ai/datasets/mammo
 
 
-# How to train the model?
+## How to train the model?
 1. Convert the dicom images to png with this [code](/src/data_processing/dicom_to_png.py) <br/>
 2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning code](/src/data_processing/dicom_to_png.py) <br/>
 3. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py) <br/>
