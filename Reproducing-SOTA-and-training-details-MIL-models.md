@@ -39,7 +39,7 @@ For the val and test set, the images were only resized and normalized. The singl
 
 For Kim et al. [1] and Shu et al. [2], we used 8 bit preprocessed CBIS images as input. For Shen et al. [3], Wu et al. [4] and our MIL variants, we used our maximum bit depth preprocessed images as input, i.e. 16 bit for CBIS and VinDr, and 12 bit for MGM. The reason for this difference is [3] explicitly stated that they used 16 bit images, [2] used 8 bit images and [1] did not mention anything, motivating us to choose the standard image bit depth used for input to neural networks. <br/>
 
-Note:  To get the same dataset split with the random seeds mentioned above, make sure to sort the input csv file by the patient id for CBIS and by study id for VinDr. Our [input csv file creation script](/src/data-processing/input_csv_file_creation_cbis) does that already.
+Note:  To get the same dataset split with the random seeds mentioned above, make sure to sort the input csv file by the patient id for CBIS and by study id for VinDr. Our [input csv file creation script](/src/data-processing/input_csv_file_creation_cbis) already does that.
 
 ### References
 
