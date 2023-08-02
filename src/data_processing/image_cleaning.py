@@ -221,12 +221,12 @@ path_to_img_size = '<output csv file to store the preprocessed image coordinates
 path_to_img_size1 = '<output csv file to store the preprocessed image coordinates after padding adjustment>'
 
 # path for output folder - png files
-output_folder_path = '<output path to store cleane/preprocessed images>'
+output_folder_path_cleanedimages = '<output path to cleaned/preprocessed images>'
 
 start = 0
 end = 0
 selected_image=''
 
 #image_preprocessing based on modality
-image_preprocessing(start, end, selected_image, input_path, modality, path_to_input_csvfile, output_folder_path)
+image_preprocessing(start, end, selected_image, input_path, modality, path_to_input_csvfile, output_folder_path_cleanedimages)
 read_imgsize_csvfile(path_to_img_size)

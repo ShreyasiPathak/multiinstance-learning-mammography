@@ -42,7 +42,7 @@ def dicom_list_func(dicom_folder):
     dicom_filenames = glob.glob(path_to_dicom+'/'+dicom_folder[1]+'/*.dicom')
     print("Id:{}, dicom_filenames:{}".format(dicom_folder[0], dicom_filenames))
     for dicom_filename in dicom_filenames:
-        case_path = "<path_to_output_folder>" + dicom_folder[1]
+        case_path = "<path_to_output_folder_original_png>" + dicom_folder[1]
         if not os.path.exists(case_path):
             os.mkdir(case_path)
         png_filename = case_path+'/'+dicom_filename.split('/')[-1].strip('.dicom')+'.png'
@@ -50,8 +50,10 @@ def dicom_list_func(dicom_folder):
             save_dicom_image_as_png(dicom_filename, png_filename, 16)
 
 if __name__ == '__main__':
-    path_to_dicom = "<path_to_dicom_folder>"
+    path_to_dicom = "<path_to_dicom_folder>" 
     dicom_list = os.listdir(path_to_dicom)
+    #add the below line for CBIS to keep only the folders with mammogram images and exclude the folders with ROIs.
+    #dicom_list = list(filter(lambda x: not re.search('_\d$',x), dicom_list))
     dicom_list1 = []
     for idx, x, in enumerate(dicom_list):
         dicom_list1.append([idx, x])
