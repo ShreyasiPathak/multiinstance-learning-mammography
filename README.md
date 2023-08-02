@@ -2,7 +2,7 @@
 
 This is a the code base of case-level breast cancer prediction using mammography. You can pass any number of images per case to our model, and the model will predict malignant or benign, along with a saliency map for each image and 6 candidate ROIs.
 
-<img src="mil-breast-cancer-model-overview.png" alt="model-overview" style="height: 500px; width:500px;"/>
+<img src="mil-breast-cancer-model-overview.png" alt="model-overview" style="height: 400px; width:700px;"/>
 
 ## Prerequisites
 - Python 3.9.15
