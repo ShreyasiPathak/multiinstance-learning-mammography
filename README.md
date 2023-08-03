@@ -56,7 +56,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
    > export PYTHONPATH=/home/src 
 4. Run the code as follows: 
    > cd src <br/>
-   > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1 --train <br/>
+   > python train_eval/train.py --config_file_path sample-config-files/cbis/es-att-img/ --num_config_start 0 --num_config_end 1 --mode train <br/>
    
    Explanation of the above command: <br/>
    --config_file_path, I have added the location of my config file. You can add yours. Trained models and results will get stored in this location. <br/>
@@ -64,9 +64,8 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 
 ## Evaluation of trained models
 1. We have provided our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&dl=0) for users who want to only evaluate our trained model on CBIS/VinDr, or if someone wants to use our pretrained model for training on other datasets.
-2. All the above steps in the above sections need to be followed, but before running 
-  > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1
-  comment out lines 399 to 402 to only test the pretrained models.
+2. For testing one of our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&dl=0), run:
+  > python train_eval/train.py --config_file_path MIL-breastcancer-pretrained-models/cbis/es-att-img --num_config_start 0 --num_config_end 1 --mode test
 
 ## State-of-the-art (SOTA) reproducibility
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
