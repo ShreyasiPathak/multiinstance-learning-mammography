@@ -1,23 +1,23 @@
 # Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
 
 ## Introduction
-This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model also outputs a saliency map for each image and 6 candidate ROIs. <br/>
+This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model also outputs a saliency map for each image and 6 candidate ROIs per image. <br/>
 
 A overview of our model framework can be seen below. 
 
 <img src="mil-breast-cancer-model-overview.png" alt="model-overview" style="height: 300px; width:800px;"/>
 
-A visualization of our model output is shown below. It shows 4 images in a case and 6 ROI candidates extracted by our model from each image, along with the importance (attention) score associated with the image and the ROI. This is a malignant case which has been classified as malignant by our model and the relevent ROIs containing mass abnormality have been correctly extracted.
+A visualization of our model output is shown below. It shows 4 images in a case and 6 ROI candidates extracted by our model for each image, along with the importance (attention) score associated with the images and the ROIs. This is a malignant case which has been classified as malignant by our model and the relevent ROIs containing mass abnormality have been correctly extracted.
 
 <img src="visualization_case_patches.PNG" alt="model-output-visualization" style="height: 400px; width:800px;"/>
 
-## MGM dataset 
-Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in a case in our private MGM dataset) can be found [here](/MGM-image-samples).
-In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in realistic clinical setting.  
+## A realistic setting dataset (MGM) 
+Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in our private dataset MGM) can be found [here](/MGM-image-samples).
+In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in a realistic clinical setting.  
 
 ## State-of-the-art (SOTA) reproducibility and results
-We have described in detail how we reproduced 4 SOTA models [here](Reproducing-SOTA-and-training-details-MIL-models). We have also added some extra details for training our model that is missing in the paper. <br/>
-The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models [here](Detailed-Result-Table.md) in this repository. We have also added the number of models parameters [here](Detailed-Result-Table.md).
+We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our mode [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
+The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository as well (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
 
 ## Running the code
 Below you can find the instructions for running the script in this repository.
