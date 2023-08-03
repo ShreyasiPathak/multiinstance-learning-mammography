@@ -15,6 +15,9 @@ A visualization of our model output is shown below. It shows 4 images in a case 
 Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in our private dataset MGM) can be found [here](/MGM-image-samples).
 In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in a realistic clinical setting. Due to privacy regulations, access to this dataset is not yet possible, but we are working on finding a solution for this. 
 
+### Results
+The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
+
 ## Running the code
 Below you can find the instructions for training our models - both single-instance and multi-instance models, in this repository. 
 
@@ -65,8 +68,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
 
-## Results
-The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
+
 
 
  
