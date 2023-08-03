@@ -11,16 +11,12 @@ A visualization of our model output is shown below. It shows 4 images in a case 
 
 <img src="visualization_case_patches.PNG" alt="model-output-visualization" style="height: 400px; width:800px;"/>
 
-## A realistic setting dataset (MGM) 
+### A realistic setting dataset (MGM) 
 Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in our private dataset MGM) can be found [here](/MGM-image-samples).
-In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in a realistic clinical setting.  
-
-## State-of-the-art (SOTA) reproducibility and results
-We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our mode [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
-The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository as well (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
+In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in a realistic clinical setting. Due to privacy regulations, access to this dataset is not yet possible, but we are working on finding a solution for this. 
 
 ## Running the code
-Below you can find the instructions for running the script in this repository.
+Below you can find the instructions for training our models - both single-instance and multi-instance models, in this repository. 
 
 ### Prerequisites
 - Python 3.9.15
@@ -64,4 +60,13 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 2. All the above steps in the above sections need to be followed, but before running 
   > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1
   comment out lines 399 to 402 to only test the pretrained models.
+
+## State-of-the-art (SOTA) reproducibility
+We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
+Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
+
+## Results
+The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
+
+
  
