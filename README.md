@@ -9,7 +9,7 @@ A overview of our model framework can be seen below.
 
 A visualization of our model output is shown below. It shows 4 images in a case and 6 ROI candidates extracted by our model from each image, along with the importance (attention) score associated with the image and the ROI. This is a malignant case which has been classified as malignant by our model and the relevent ROIs containing mass abnormality have been correctly extracted.
 
-<img src="visualization_case_patches.png" alt="model-output-visualization" style="height: 400px; width:800px;"/>
+<img src="visualization_case_patches.PNG" alt="model-output-visualization" style="height: 400px; width:800px;"/>
 
 ## MGM dataset 
 Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in a case in our private MGM dataset) can be found [here](/MGM-image-samples).
