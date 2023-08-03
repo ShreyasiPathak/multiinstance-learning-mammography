@@ -1,7 +1,7 @@
 # Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
 
 ## Introduction
-This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model also outputs a saliency map for each image and 6 candidate ROIs per image. <br/>
+This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model generates a saliency map for each image and 6 candidate ROIs per image. <br/>
 
 A overview of our model framework can be seen below. 
 
@@ -13,7 +13,7 @@ A visualization of our model output is shown below. It shows 4 images in a case 
 
 ### A realistic setting dataset (MGM) 
 Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in our private dataset MGM) can be found [here](/MGM-image-samples).
-In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in a realistic clinical setting. Due to privacy regulations, access to this dataset is not yet possible, but we are working on finding a solution for this. 
+In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination/MGM-view-combination.md) to get a clearer perspective of types of cases in a realistic clinical setting. Due to privacy regulations, access to this dataset is not yet possible, but we are working on finding a solution for this. 
 
 ### Results
 The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models in this repository (can be found [here](Detailed-Result-Table.md)). The number of models parameters can be found [here](Detailed-Result-Table.md).
@@ -47,7 +47,10 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 
 ### Model training
 1. Our model training script can be found [here](/src). 
-2. Create the configuration file for storing input parameters for the code using this [config file creation script](/src/setup/config_file_creation.py). You can refer to our configuration file of our reproduction of single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ for CBIS and VinDr [here](/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. 
+2. Create the configuration file for storing input parameters for the code as follows:
+   > cd src
+   > python setup/config_file_creation.py  
+ You can refer to our configuration files for training single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ on CBIS and VinDr datasets [here](/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. 
 3. Add this in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
    > export PYTHONPATH=/home/src 
 4. Run the code as follows: 
@@ -67,8 +70,3 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 ## State-of-the-art (SOTA) reproducibility
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
-
-
-
-
- 
