@@ -1,10 +1,28 @@
-## Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
+# Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
 
-This is a the code base of case-level breast cancer prediction using mammography. You can pass any number of images per case to our model, and the model will predict malignant or benign, along with a saliency map for each image and 6 candidate ROIs.
+## Introduction
+This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model also outputs a saliency map for each image and 6 candidate ROIs. <br/>
+
+A overview of our model framework can be seen below. 
 
 <img src="mil-breast-cancer-model-overview.png" alt="model-overview" style="height: 300px; width:800px;"/>
 
-## Prerequisites
+A visualization of our model output is shown below. It shows 4 images in a case and 6 ROI candidates extracted by our model from each image, along with the importance (attention) score associated with the image and the ROI. This is a malignant case which has been classified as malignant by our model and the relevent ROIs containing mass abnormality have been correctly extracted.
+
+<img src="visualization_case_patches.png" alt="model-output-visualization" style="height: 400px; width:800px;"/>
+
+## MGM dataset 
+Examples of different mammogram images that can be present in a case in realistic clinical scenario (e.g., in a case in our private MGM dataset) can be found [here](/MGM-image-samples).
+In a realistic setting, cases can contain a non-fixed number of images. We have shown the different image/view combinations in the MGM cases [here](/MGM-view-combination) to get a clearer perspective of types of cases in realistic clinical setting.  
+
+## State-of-the-art (SOTA) reproducibility and results
+We have described in detail how we reproduced 4 SOTA models [here](Reproducing-SOTA-and-training-details-MIL-models). We have also added some extra details for training our model that is missing in the paper. <br/>
+The F1 and AUC score of our models can be found in our paper, however, we have also included the precision and recall scores of our models [here](Detailed-Result-Table.md) in this repository. We have also added the number of models parameters [here](Detailed-Result-Table.md).
+
+## Running the code
+Below you can find the instructions for running the script in this repository.
+
+### Prerequisites
 - Python 3.9.15
 - Pytorch 1.11.0+cu113
 - Cuda 11.3
@@ -15,30 +33,34 @@ This is a the code base of case-level breast cancer prediction using mammography
 - scikit-learn 1.0.2
 - seaborn 0.11.2
 
-## Datasets
+### Access to Datasets
 We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) and MGM (private dataset). We provide instructions on how to train and test our model on the 2 public datasets. <br/> 
 - CBIS can be downloaded from [here](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=22516629). <br/>
 - VinDr can be downloaded from [here](https://vindr.ai/datasets/mammo). <br/>
 
-## How to create the preprocessed datasets?
+### Creation of preprocessed datasets
 1. Convert the dicom images to png with this [script](/src/data_processing/dicom_to_png.py). <br/>
-2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning script](/src/data_processing/image_cleaning.py). 
-3. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
+2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning script](/src/data_processing/image_cleaning.py). Example of the results of our image preprocessing algorithm can be found [here](/image-preprocessing). 
 
-## How to train and evaluate the model?
-1. Create the configuration file for storing input parameters for the code using this [config file creation script](/src/setup/config_file_creation.py). We have provided an example configuration file of our reproduction of single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ for CBIS and VinDr. Please add your absolute input data path to the field "preprocessed_imagepath" and "SIL_csvfilepath" and "MIL_csvfilepath" in the script. 
-2. Add this in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
+### Preparation of input csv file 
+1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
+2. We have provided our input csv file for CBIS and VinDr [here](/input-csv-files).
+
+### Model training
+1. Our model training script can be found [here](/src). 
+2. Create the configuration file for storing input parameters for the code using this [config file creation script](/src/setup/config_file_creation.py). You can refer to our configuration file of our reproduction of single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ for CBIS and VinDr [here](/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. 
+3. Add this in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
    > export PYTHONPATH=/home/src 
-3. Run the code as follows: 
+4. Run the code as follows: 
    > cd src <br/>
-   > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1 <br/>
+   > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1 --train <br/>
    
    Explanation of the above command: <br/>
    --config_file_path, I have added the location of my config file. You can add yours. Trained models and results will get stored in this location. <br/>
    --num_config_start and --num_config_end are the start and end id of the config files if there are >1 config file that I want to execute. I have only provided 1 config file, so this will be start and end will be 0 and 1. This argument is useful during hyperparameter tuning, where each config file contains a different hypeparameter combination <br/>
 
-## How to only evaluate the model?
-1. We have provided our pretrained models [here](/pretrained-models) for users who want to only evaluate our model on CBIS/VinDr, or if someone wants to use our pretrained model for training on other datasets.
+## Evaluation of trained models
+1. We have provided our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&dl=0) for users who want to only evaluate our trained model on CBIS/VinDr, or if someone wants to use our pretrained model for training on other datasets.
 2. All the above steps in the above sections need to be followed, but before running 
   > python train_eval/train.py --config_file_path /home/modelid31_viewsinclusionall_femodelresnet34_learningtypeSIL/ --num_config_start 0 --num_config_end 1
   comment out lines 399 to 402 to only test the pretrained models.
