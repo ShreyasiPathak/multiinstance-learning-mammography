@@ -51,7 +51,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
 
-You can refer to our configuration files for training single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ on CBIS and VinDr datasets [here](/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. 
+   You can refer to our configuration files for training single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ on CBIS and VinDr datasets [here](/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
 3. Add this in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
    > export PYTHONPATH=/home/src 
 4. Run the code as follows: 
