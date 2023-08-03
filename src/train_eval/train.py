@@ -366,10 +366,18 @@ if __name__=='__main__':
         type=int,
         help="file number of hyperparameter combination to end with; one config file corresponds to one hyperparameter combination",
     )
+
+    parser.add_argument(
+        "--mode",
+        type=str,
+        help="model training or test",
+    )
     args = parser.parse_args()
 
     num_config_start = args.num_config_start
     num_config_end = args.num_config_end
+
+    mode = args.mode
 
     #read all instructed config files
     config_file_names = glob.glob(args.config_file_path+'/config*')
@@ -395,11 +403,12 @@ if __name__=='__main__':
         
         model, total_params = model_initialization(config_params)
 
-        #training the model
-        if config_params['usevalidation']:
-            train(config_params, model, path_to_model, dataloader_train, dataloader_val, batches_train, batches_val, df_train)
-        else:
-            train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
+        if mode == train:
+            #training the model
+            if config_params['usevalidation']:
+                train(config_params, model, path_to_model, dataloader_train, dataloader_val, batches_train, batches_val, df_train)
+            else:
+                train(config_params, model, path_to_model, dataloader_train, dataloader_test, batches_train, batches_test, df_train)
         
             
         #hyperparameter results
