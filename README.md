@@ -68,5 +68,5 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
   > python train_eval/train.py --config_file_path MIL-breastcancer-pretrained-models/cbis/es-att-img --num_config_start 0 --num_config_end 1 --mode test
 
 ## State-of-the-art (SOTA) reproducibility
-We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models).<br/>
+We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models.md).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
