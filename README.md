@@ -46,7 +46,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 2. We have provided our input csv file for CBIS and VinDr [here](/input-csv-files).
 
 ### Model training
-1. Our model training script can be found [here](src/). 
+1. Our model training script can be found [here](src). 
 2. Create the configuration file for storing input parameters for the code as follows:
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
