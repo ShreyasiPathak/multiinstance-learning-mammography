@@ -43,7 +43,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 
 ### Preparation of input csv file 
 1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
-2. We have provided our input csv file for CBIS and VinDr [here](/input-csv-files).
+2. We have provided a small snippet from our input csv file for CBIS and VinDr [here](/input-csv-files).
 
 ### Model training
 1. Our model training script can be found [here](master/src). 
