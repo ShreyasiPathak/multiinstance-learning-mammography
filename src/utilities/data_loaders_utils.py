@@ -10,6 +10,7 @@ import operator
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from torchvision import transforms
 from torch.utils.data import Dataset, Sampler
 
 from utilities import utils, data_augmentation_utils, gmic_utils
@@ -404,8 +405,9 @@ def collect_images_8bits(config_params, data, views_allowed):
         img= img.convert('RGB')
         breast_side = data['Views'][0]
         ### added later; have not checked if it works for shu or kim et al
-        #transformTen = transforms.ToTensor()
-        #img = transformTen(img)
+        if config_params['dataaug'] == 'gmic':
+            transformTen = transforms.ToTensor()
+            img = transformTen(img)
         ### ends here ##
         if config_params['dataaug'] == 'kim':
             pad_longer_side = data_augmentation_utils.MyPaddingLongerSide(config_params['resize'])
