@@ -69,3 +69,14 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 ## State-of-the-art (SOTA) reproducibility
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models.md).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
+
+## Citation to our paper
+Pathak, S., Schlötterer, J., Geerdink, J., Vijlbrief, O.D., van Keulen, M. and Seifert, C., 2023. Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings. arXiv preprint arXiv:2310.12677.
+```
+@article{pathak2023weakly,
+  title={Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings},
+  author={Pathak, Shreyasi and Schl{\"o}tterer, J{\"o}rg and Geerdink, Jeroen and Vijlbrief, Onno Dirk and van Keulen, Maurice and Seifert, Christin},
+  journal={arXiv preprint arXiv:2310.12677},
+  year={2023}
+}
+```
