@@ -26,6 +26,11 @@ def dataset_based_changes(config_params):
         sanity_check_mil_col = 'ShortPath'
         sanity_check_sil_col = 'CasePath'
 
+    elif config_params['dataset'] == 'cmmd':
+        views_col = 'Views'
+        sanity_check_mil_col = 'ShortPath'
+        sanity_check_sil_col = 'Patient_Id'
+
     return views_col, sanity_check_mil_col, sanity_check_sil_col
 
 
@@ -43,18 +48,58 @@ def input_file_creation(config_params):
                 df_modality['Groundtruth'] = df_modality['ImageLabel']
             elif config_params['labeltouse'] == 'caselabel':
                 df_modality['Groundtruth'] = df_modality['CaseLabel']
+            elif config_params['labeltouse'] == 'imagebirads':
+                df_modality['Groundtruth'] = df_modality['BIRADS']
             
             if config_params['dataset'] == 'cbis-ddsm':
                 df_train = df_modality[df_modality['ImageName'].str.contains('Training')]
                 if config_params['usevalidation']:
-                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                    patient_col = 'Patient_Id'
+                    df_train, df_val = utils.stratifiedgroupsplit_train_val(df_train, config_params['randseeddata'], patient_col)
+                    #df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
                 df_test = df_modality[df_modality['ImageName'].str.contains('Test')]
            
             elif config_params['dataset'] == 'vindr':
                 df_train = df_modality[df_modality['Split'] == 'training']
                 if config_params['usevalidation']:
-                    df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                    patient_col = 'StudyInstanceUID'
+                    df_train, df_val = utils.stratifiedgroupsplit_train_val(df_train, config_params['randseeddata'], patient_col)
+                    #df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
                 df_test = df_modality[df_modality['Split'] == 'test']
+            total_instances = df_modality.shape[0]
+        
+        elif config_params['datasplit'] == 'customsplit':
+            csv_file_path = config_params['SIL_csvfilepath']
+            df_modality = pd.read_csv(csv_file_path, sep=';')
+            print("df modality shape:",df_modality.shape)
+            df_modality = df_modality[~df_modality['Views'].isnull()]
+            print("df modality no null view:",df_modality.shape)
+            df_modality['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_modality['ShortPath']
+            if config_params['labeltouse'] == 'imagelabel':
+                df_modality['Groundtruth'] = df_modality['ImageLabel']
+            elif config_params['labeltouse'] == 'caselabel':
+                df_modality['Groundtruth'] = df_modality['CaseLabel']
+            
+            if config_params['dataset'] == 'cmmd':
+                df_modality['Groundtruth'] = df_modality['Groundtruth'].str.lower()
+                df_train_index = df_modality[df_modality['Patient_Id']=='D2-0247'].index[-1]
+                df_train = df_modality[:df_train_index]
+                if config_params['usevalidation']:
+                    patient_col = 'Patient_Id'
+                    df_train, df_val = utils.stratifiedgroupsplit_train_val(df_train, config_params['randseeddata'], patient_col)
+                    #df_train, df_val = train_test_split(df_train, test_size=0.10, shuffle=True, stratify=df_train['Groundtruth'])
+                df_test =  df_modality[(df_train_index+1):]
+                
+                print("Check starting between perfect transfer of patients from case based to single instance based")
+                train_check = df_train['Patient_Id'].unique().tolist()
+                val_check = df_val['Patient_Id'].unique().tolist()
+                test_check = df_test['Patient_Id'].unique().tolist()
+                train_check.sort()
+                val_check.sort()
+                test_check.sort()
+                print(len(train_check))
+                print(len(val_check))
+                print(len(test_check))
             total_instances = df_modality.shape[0]
 
         elif config_params['datasplit'] == 'casebasedtestset':
@@ -67,30 +112,48 @@ def input_file_creation(config_params):
             #bags with exactly 4 views
             df_modality1  = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
             print("df_modality 4 views:", df_modality1.shape)
-            df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'])
+            if config_params['dataset'] == 'cbis-ddsm':
+                patient_col = 'Patient_Id'
+            elif config_params['dataset'] == 'vindr':
+                patient_col = 'StudyInstanceUID'
+            elif config_params['dataset'] == 'zgt':
+                patient_col = 'Patient_Id'
             
+            if config_params['usevalidation']:
+                df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'], patient_col)
+            else:
+                df_train, df_test = utils.stratifiedgroupsplit_train_test(df_modality1, config_params['randseeddata'], patient_col)
+
             #bags with views!=4
             df_modality2 = df_modality[df_modality[views_col].str.split('+').str.len()!=4.0]
             print("df_modality views<4:", df_modality2.shape)
-            df_train = pd.concat([df_train, df_modality2[df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist())]])
-            df_val = pd.concat([df_val, df_modality2[df_modality2['Patient_Id'].isin(df_val['Patient_Id'].unique().tolist())]])
-            df_test = pd.concat([df_test, df_modality2[df_modality2['Patient_Id'].isin(df_test['Patient_Id'].unique().tolist())]])
-            df_modality2 = df_modality2[~df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist()+df_val['Patient_Id'].unique().tolist()+df_test['Patient_Id'].unique().tolist())]
-            df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'])
+            df_train = pd.concat([df_train, df_modality2[df_modality2[patient_col].isin(df_train[patient_col].unique().tolist())]])
+            if config_params['usevalidation']:
+                df_val = pd.concat([df_val, df_modality2[df_modality2[patient_col].isin(df_val[patient_col].unique().tolist())]])
+            df_test = pd.concat([df_test, df_modality2[df_modality2[patient_col].isin(df_test[patient_col].unique().tolist())]])
+            df_modality2 = df_modality2[~df_modality2[patient_col].isin(df_train[patient_col].unique().tolist()+df_val[patient_col].unique().tolist()+df_test[patient_col].unique().tolist())]
+            if config_params['usevalidation']:
+                df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'], patient_col)
+            else:
+                df_train1, df_test1 = utils.stratifiedgroupsplit_train_test(df_modality2, config_params['randseeddata'], patient_col)
             
             df_train = pd.concat([df_train, df_train1])
-            df_val = pd.concat([df_val, df_val1])
+            if config_params['usevalidation']:
+                df_val = pd.concat([df_val, df_val1])
             df_test = pd.concat([df_test, df_test1])
             
             print("Check starting between perfect transfer of patients from case based to single instance based")
             train_check = df_train[sanity_check_mil_col].unique().tolist()
-            val_check = df_val[sanity_check_mil_col].unique().tolist()
+            if config_params['usevalidation']:
+                val_check = df_val[sanity_check_mil_col].unique().tolist()
             test_check = df_test[sanity_check_mil_col].unique().tolist()
             train_check.sort()
-            val_check.sort()
+            if config_params['usevalidation']:
+                val_check.sort()
             test_check.sort()
             print(len(train_check))
-            print(len(val_check))
+            if config_params['usevalidation']:
+                print(len(val_check))
             print(len(test_check))
 
             if config_params['labeltouse'] == 'imagelabel':
@@ -114,35 +177,42 @@ def input_file_creation(config_params):
             #taking the case-level patient rows from the SIL csv path 
             if config_params['dataset'] == 'cbis-ddsm':
                 df_train = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_train['FolderName'].tolist())]
-                df_val = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_val['FolderName'].tolist())]
+                if config_params['usevalidation']:
+                    df_val = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_val['FolderName'].tolist())]
                 df_test = df_instances[df_instances['ImageName'].str.split('_').str[:3].str.join('_').isin(df_test['FolderName'].tolist())]
             
             elif config_params['dataset'] == 'zgt':
                 df_train = df_instances[df_instances['CasePath'].isin(df_train['ShortPath'].tolist())]
-                df_val = df_instances[df_instances['CasePath'].isin(df_val['ShortPath'].tolist())]
+                if config_params['usevalidation']:
+                    df_val = df_instances[df_instances['CasePath'].isin(df_val['ShortPath'].tolist())]
                 df_test = df_instances[df_instances['CasePath'].isin(df_test['ShortPath'].tolist())]
 
             print('check continues...')
             if config_params['dataset'] == 'cbis-ddsm':
                 train_check1 = df_train[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
-                val_check1 = df_val[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
+                if config_params['usevalidation']:
+                    val_check1 = df_val[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
                 test_check1 = df_test[sanity_check_sil_col].str.split('_').str[:3].str.join('_').unique().tolist()
             
             elif config_params['dataset'] == 'zgt':
                 train_check1 = df_train[sanity_check_sil_col].unique().tolist()
-                val_check1 = df_val[sanity_check_sil_col].unique().tolist()
+                if config_params['usevalidation']:
+                    val_check1 = df_val[sanity_check_sil_col].unique().tolist()
                 test_check1 = df_test[sanity_check_sil_col].unique().tolist()
 
             train_check1.sort()
-            val_check1.sort()
+            if config_params['usevalidation']:
+                val_check1.sort()
             test_check1.sort()
             print(len(train_check1))
-            print(len(val_check1))
+            if config_params['usevalidation']:
+                print(len(val_check1))
             print(len(test_check1))
             if train_check==train_check1:
                 print('identical train')
-            if val_check==val_check1:
-                print('identical val')
+            if config_params['usevalidation']:
+                if val_check==val_check1:
+                    print('identical val')
             if test_check==test_check1:
                 print('identical test')
             print("check end!")
@@ -167,7 +237,8 @@ def input_file_creation(config_params):
             #bags with exactly 4 views
             df_modality1 = df_modality[df_modality[views_col].str.split('+').str.len()==4.0]
             print("df_modality 4 views:", df_modality1.shape)
-            df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'])
+            patient_col = 'Patient_Id'
+            df_train, df_val, df_test = utils.stratifiedgroupsplit(df_modality1, config_params['randseeddata'], patient_col)
             total_instances = df_modality1.shape[0]
             
             #bags with views!=4
@@ -178,7 +249,7 @@ def input_file_creation(config_params):
                 df_val = pd.concat([df_val, df_modality2[df_modality2['Patient_Id'].isin(df_val['Patient_Id'].unique().tolist())]])
                 df_test = pd.concat([df_test, df_modality2[df_modality2['Patient_Id'].isin(df_test['Patient_Id'].unique().tolist())]])
                 df_modality2 = df_modality2[~df_modality2['Patient_Id'].isin(df_train['Patient_Id'].unique().tolist()+df_val['Patient_Id'].unique().tolist()+df_test['Patient_Id'].unique().tolist())]
-                df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'])
+                df_train1, df_val1, df_test1 = utils.stratifiedgroupsplit(df_modality2, config_params['randseeddata'], patient_col)
             
                 df_train = pd.concat([df_train,df_train1])
                 df_val = pd.concat([df_val,df_val1])
@@ -219,7 +290,9 @@ def input_file_creation(config_params):
 
     print("Total instances:", total_instances)
     
+
     #df_train = df_train[100:140]
+    #df_train = pd.concat([df_train[100:110], df_train[df_train['Views']=='LCC'], df_train[df_train['Views']=='LCC+RCC'], df_train[df_train['Views']=='LCC+LMLO']])
     #df_val = df_val[:20]
     #df_test = df_test[20:40]
 

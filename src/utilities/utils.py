@@ -123,6 +123,8 @@ def stratified_class_count(df):
 
 def class_distribution_weightedloss(config_params, df):
     df_groundtruth=df['Groundtruth'].map(config_params['groundtruthdic'])
+    print(np.array(config_params['classes']))
+    print(df_groundtruth)
     class_weight=utils.class_weight.compute_class_weight(class_weight = 'balanced', classes = np.array(config_params['classes']), y = df_groundtruth)
     print("class count:", dict(Counter(df_groundtruth)))
     print("class weight:", class_weight)
@@ -161,7 +163,7 @@ def groupby_view_test(df):
         view_group_names_dic[name]=item.shape[0]
     return df_concat,view_group_names_dic
 
-def stratifiedgroupsplit(df, rand_seed):
+def stratifiedgroupsplit(df, rand_seed, patient_col):
     groups = df.groupby('Groundtruth')
     all_train = []
     all_test = []
@@ -170,22 +172,23 @@ def stratifiedgroupsplit(df, rand_seed):
     train_valsplit = GroupShuffleSplit(test_size=0.10, n_splits=2, random_state=rand_seed)
     for group_id, group in groups:
         # if a group is already taken in test or train it must stay there
-        group = group[~group['Patient_Id'].isin(all_train+all_val+all_test)]
+        group = group[~group[patient_col].isin(all_train+all_val+all_test)]
         # if group is empty 
         if group.shape[0] == 0:
             continue
-        train_inds1, test_inds = next(train_testsplit.split(group, groups=group['Patient_Id']))
-        train_inds, val_inds = next(train_valsplit.split(group.iloc[train_inds1], groups=group.iloc[train_inds1]['Patient_Id']))
+        train_inds1, test_inds = next(train_testsplit.split(group, groups=group[patient_col]))
+        train_inds, val_inds = next(train_valsplit.split(group.iloc[train_inds1], groups=group.iloc[train_inds1][patient_col]))
     
-        all_train += group.iloc[train_inds1].iloc[train_inds]['Patient_Id'].tolist()
-        all_val += group.iloc[train_inds1].iloc[val_inds]['Patient_Id'].tolist()
-        all_test += group.iloc[test_inds]['Patient_Id'].tolist()
+        all_train += group.iloc[train_inds1].iloc[train_inds][patient_col].tolist()
+        all_val += group.iloc[train_inds1].iloc[val_inds][patient_col].tolist()
+        all_test += group.iloc[test_inds][patient_col].tolist()
         
-    train = df[df['Patient_Id'].isin(all_train)]
-    val = df[df['Patient_Id'].isin(all_val)]
-    test = df[df['Patient_Id'].isin(all_test)]
+    train = df[df[patient_col].isin(all_train)]
+    val = df[df[patient_col].isin(all_val)]
+    test = df[df[patient_col].isin(all_test)]
     
-    '''form_train = set(train['Patient_Id'].tolist())
+    '''
+    form_train = set(train['Patient_Id'].tolist())
     form_val = set(val['Patient_Id'].tolist())
     form_test = set(test['Patient_Id'].tolist())
     inter1 = form_train.intersection(form_test)
@@ -199,8 +202,49 @@ def stratifiedgroupsplit(df, rand_seed):
     print(inter2) # this should be empty
     print(inter3) # this should be empty
     print(train[train['Patient_Id'].isin(test['Patient_Id'].unique().tolist())])
-    print(test[test['Patient_Id'].isin(train['Patient_Id'].unique().tolist())])'''
+    print(test[test['Patient_Id'].isin(train['Patient_Id'].unique().tolist())])
+    '''
     return train, val, test
+
+def stratifiedgroupsplit_train_val(df, rand_seed, patient_col):
+    groups = df.groupby('Groundtruth')
+    all_train = []
+    all_val = []
+    train_valsplit = GroupShuffleSplit(test_size=0.10, n_splits=2, random_state=rand_seed)
+    for group_id, group in groups:
+        # if a group is already taken in test or train it must stay there
+        group = group[~group[patient_col].isin(all_train+all_val)]
+        # if group is empty 
+        if group.shape[0] == 0:
+            continue
+        train_inds, val_inds = next(train_valsplit.split(group, groups=group[patient_col]))
+    
+        all_train += group.iloc[train_inds][patient_col].tolist()
+        all_val += group.iloc[val_inds][patient_col].tolist()
+        
+    train = df[df[patient_col].isin(all_train)]
+    val = df[df[patient_col].isin(all_val)]
+    return train, val
+
+def stratifiedgroupsplit_train_test(df, rand_seed, patient_col):
+    groups = df.groupby('Groundtruth')
+    all_train = []
+    all_val = []
+    train_valsplit = GroupShuffleSplit(test_size=0.15, n_splits=2, random_state=rand_seed)
+    for group_id, group in groups:
+        # if a group is already taken in test or train it must stay there
+        group = group[~group[patient_col].isin(all_train+all_val)]
+        # if group is empty 
+        if group.shape[0] == 0:
+            continue
+        train_inds, val_inds = next(train_valsplit.split(group, groups=group[patient_col]))
+    
+        all_train += group.iloc[train_inds][patient_col].tolist()
+        all_val += group.iloc[val_inds][patient_col].tolist()
+        
+    train = df[df[patient_col].isin(all_train)]
+    val = df[df[patient_col].isin(all_val)]
+    return train, val
 
 def calculate_image_size(df):
     total=df.shape[0]

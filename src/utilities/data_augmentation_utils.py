@@ -179,6 +179,38 @@ def data_augmentation_test_shen_gmic(config_params, mean, std_dev):
     preprocess_test = transforms.Compose(preprocess_test_list)
     return preprocess_test
 
+class TrivialAugmentWideNoColor(transforms.TrivialAugmentWide):
+    def _augmentation_space(self, num_bins: int):
+        return {
+            "Identity": (torch.tensor(0.0), False),
+            "ShearX": (torch.linspace(0.0, 0.5, num_bins), True), 
+            "ShearY": (torch.linspace(0.0, 0.5, num_bins), True), 
+            "TranslateX": (torch.linspace(0.0, 16.0, num_bins), True), 
+            "TranslateY": (torch.linspace(0.0, 16.0, num_bins), True), 
+            "Rotate": (torch.linspace(0.0, 60.0, num_bins), True), 
+        }
+
+def data_augmentation_train_pipnet(config_params, mean, std_dev):
+    transform = transforms.Compose([
+        transforms.Resize(size=(config_params['resize'][0], config_params['resize'][1])),
+        TrivialAugmentWideNoColor(),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomResizedCrop(size=(config_params['resize'][0], config_params['resize'][1]), scale=(0.95, 1.)),
+        transforms.Grayscale(3),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std_dev)
+    ])
+    return transform
+
+def data_augmentation_test_pipnet(config_params, mean, std_dev):
+    transform = transforms.Compose([
+            transforms.Resize(size=(config_params['resize'][0], config_params['resize'][1])),
+            transforms.Grayscale(3),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std_dev)
+        ])
+    return transform
+
 def data_augmentation(config_params):
     # Data augmentation and normalization for training
     # Just normalization for validation

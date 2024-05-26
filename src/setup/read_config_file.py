@@ -1,5 +1,6 @@
 import ast
 from configparser import ConfigParser
+#import mlflow
 
 def read_config_file(config_file):
     '''
@@ -18,11 +19,13 @@ def read_config_file(config_file):
     config_params['numclasses'] = int(config_object["parametersetting"]['numclasses'])
     config_params['maxepochs'] =  int(config_object["parametersetting"]['maxepochs'])
     config_params['numworkers'] = int(config_object["parametersetting"]['numworkers'])
+    #config_params['numworkers'] = 8
     config_params['groundtruthdic'] = ast.literal_eval(config_object["parametersetting"]['groundtruthdic'])
     config_params['classes'] = ast.literal_eval(config_object["parametersetting"]['classes'])
     config_params['resize'] = ast.literal_eval(config_object["parametersetting"]['resize'])
     config_params['activation'] = config_object["parametersetting"]['activation']
     config_params['viewsinclusion'] = config_object["parametersetting"]['viewsinclusion'] #-> from data to viewsinclusion
+    #config_params['viewsinclusion'] = 'all'
     config_params['dataaug'] = config_object["parametersetting"]['dataaug']
     config_params['dataset'] = config_object["parametersetting"]['dataset']
     config_params['datasplit'] = config_object["parametersetting"]['datasplit']
@@ -54,6 +57,7 @@ def read_config_file(config_file):
         config_params['datascaling'] = False
     
     config_params['extra'] = config_object["parametersetting"]['extra']
+    #config_params['extra'] = 'False'
     if config_params['extra'] == 'False':
         config_params['extra'] = False
     
@@ -180,12 +184,17 @@ def read_config_file(config_file):
         config_params['selfatt-gamma'] = False
 
     config_params['SIL_csvfilepath'] = config_object["parametersetting"]['SIL_csvfilepath']
+    #config_params['SIL_csvfilepath'] = "/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended_SI.csv"
     if config_params['SIL_csvfilepath'] == 'False':
         config_params['SIL_csvfilepath'] = False
+    
     config_params['MIL_csvfilepath'] = config_object["parametersetting"]['MIL_csvfilepath'] #"/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_biradscombined_breastdensityadded_patientinfoadded_final4.csv"
+    #config_params['MIL_csvfilepath'] = "/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended.csv"
     if config_params['MIL_csvfilepath'] == 'False':
         config_params['MIL_csvfilepath'] = False
+    
     config_params['preprocessed_imagepath'] = config_object["parametersetting"]['preprocessed_imagepath']
+    #config_params['preprocessed_imagepath'] = "/deepstore/datasets/dmb/medical/breastcancer/mammography/zgt"
     config_params['bitdepth'] = int(config_object["parametersetting"]['bitdepth'])
     
     try:
@@ -214,5 +223,18 @@ def read_config_file(config_file):
             'pretrained': config_params['pretrained'],
             'learningtype': config_params['learningtype']
         }
+
+    #config_params['dataset'] = 'zgt'
+    #config_params['viewsinclusion'] = 'all'
+    #config_params['SIL_csvfilepath'] = "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended_SI.csv"
+    #config_params['MIL_csvfilepath'] = "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended.csv"
+    #config_params['preprocessed_imagepath'] = "/groups/dso/spathak"
+    #config_params['bitdepth'] = 12
+    #config_params['batchsize'] = 4
+    #config_params['datasplit'] = 'casebasedtestset'
+    #config_params['labeltouse'] = 'caselabel'
+
+    #with mlflow.start_run():
+    #mlflow.log_params(config_params)
 
     return config_params

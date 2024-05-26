@@ -50,6 +50,10 @@ def data_augmentation(config_params, df_train):
         preprocess_train = data_augmentation_utils.data_augmentation_train(config_params, mean, std_dev)
         preprocess_val = data_augmentation_utils.data_augmentation_test(config_params, mean, std_dev)
     
+    elif config_params['dataaug']=='pipnet':
+        preprocess_train = data_augmentation_utils.data_augmentation_train_pipnet(config_params, mean, std_dev)
+        preprocess_val = data_augmentation_utils.data_augmentation_test_pipnet(config_params, mean, std_dev)
+    
     return preprocess_train, preprocess_val
 
 def dataloader(config_params, df_train, df_val, df_test, view_group_indices_train, g):

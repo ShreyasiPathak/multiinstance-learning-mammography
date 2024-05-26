@@ -24,6 +24,8 @@ def save_dicom_image_as_png(dicom_filename, png_filename, bitdepth_output=12):
             image = 2**ds.BitsStored - 1 - image
         if bitdepth_output == 16:
             image = np.uint16(image)
+        elif bitdepth_output == 8:
+            image = np.uint8(image)
         with open(png_filename, 'wb') as f:
             writer = png.Writer(
                 height=image.shape[0],

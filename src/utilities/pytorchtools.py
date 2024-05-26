@@ -8,6 +8,7 @@ Created on Mon Mar 29 22:28:07 2021
 
 import numpy as np
 import torch
+#import mlflow
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -63,6 +64,7 @@ class EarlyStopping:
             'loss': train_loss
         }
         torch.save(state, path_to_model)
+        #mlflow.log_artifact(self.path_to_model)
         #torch.save(model.state_dict(), 'checkpoint.pt')
         self.conf_mat_train_best=conf_mat_train1
         self.conf_mat_test_best=conf_mat_test1
@@ -70,7 +72,7 @@ class EarlyStopping:
 
 class ModelCheckpoint:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, path_to_model, patience=7, verbose=False):
+    def __init__(self, path_to_model, criteria, patience=7, verbose=False):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -87,10 +89,14 @@ class ModelCheckpoint:
         self.conf_mat_train_best=np.zeros((2,2))
         self.conf_mat_test_best=np.zeros((2,2))
         self.path_to_model=path_to_model
+        self.criteria = criteria
 
     def __call__(self, val_loss, model, optimizer, epoch, conf_mat_train1, conf_mat_test1, train_loss, val_auc):
 
-        score = val_auc
+        if self.criteria == 'loss':        
+            score = -val_loss
+        elif self.criteria == 'auc':
+            score = val_auc
 
         if self.best_score is None:
             self.best_score = score
@@ -110,6 +116,7 @@ class ModelCheckpoint:
             'loss': train_loss
         }
         torch.save(state,self.path_to_model)
+        #mlflow.log_artifact(self.path_to_model)
         #torch.save(model.state_dict(), 'checkpoint.pt')
         self.conf_mat_train_best=conf_mat_train1
         self.conf_mat_test_best=conf_mat_test1

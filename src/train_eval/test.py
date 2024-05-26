@@ -11,13 +11,17 @@ import torch.nn.functional as F
 
 from train_eval import loss_function, evaluation
 
+#import mlflow
+#from mlflow.types import Schema, TensorSpec
+#from mlflow.models import ModelSignature
+
 def load_model_for_testing(model, path):
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['state_dict'])
     print("checkpoint epoch and loss:", checkpoint['epoch'], checkpoint['loss'])
     return model 
 
-def test(config_params, model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname):
+def test(config_params, model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname, epoch):
     """Testing"""
     model.eval()
     total_images=0
@@ -26,7 +30,7 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
     s=0
     batch_test_no=0
     count_dic_viewwise={}
-    eval_subgroup = True
+    eval_subgroup = False
     eval_mode = True
     conf_mat_test=np.zeros((config_params['numclasses'],config_params['numclasses']))
     views_standard=['LCC', 'LMLO', 'RCC', 'RMLO']
@@ -110,8 +114,8 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
             correct, total_images, conf_mat_test, conf_mat_batch = evaluation.conf_mat_create(test_pred, test_labels, correct, total_images, conf_mat_test, config_params['classes'])
             
             if config_params['viewsinclusion'] == 'all' and config_params['learningtype'] == 'MIL' and (config_params['dataset'] == 'zgt' or config_params['dataset'] == 'cbis-ddsm'):
-                count_dic_viewwise = evaluation.calc_viewwise_metric(views_names, views_standard, count_dic_viewwise, test_labels, test_pred, output_test)
-
+                count_dic_viewwise = evaluation.calc_viewwise_metric_newplot(views_names, views_standard, count_dic_viewwise, test_labels, test_pred, output_test)
+                #print("count_dic_viewwise:", count_dic_viewwise, flush=True)
             batch_test_no+=1
             s=s+test_labels.shape[0]
             print('Test: Step [{}/{}], Loss: {:.4f}'.format(batch_test_no, batches_test, loss1), flush=True)
@@ -140,7 +144,9 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
         test_loss, running_loss, correct, total_images, 100. * correct / total_images), flush=True)
     
     per_model_metrics = evaluation.aggregate_performance_metrics(config_params, test_labels_all.cpu().numpy(),test_pred_all.cpu().numpy(), output_all_ten.cpu().numpy())
-    per_model_metrics = [running_loss] + per_model_metrics
+    metrics_dic = {"Test precision positive class": per_model_metrics[0], "Test precision micro": per_model_metrics[1], "Test precision macro": per_model_metrics[2], "Test recall positive class": per_model_metrics[3], "Test recall micro": per_model_metrics[4], "Test recall macro": per_model_metrics[5], "Test f1 positive class": per_model_metrics[6], "Test f1 micro": per_model_metrics[7], "Test f1 macro": per_model_metrics[8], "Test f1 wt macro": per_model_metrics[9], "Test accuracy": per_model_metrics[10], "Test cohen kappa": per_model_metrics[11], "Test AUC": per_model_metrics[12], "Test AUC wt macro": per_model_metrics[13]}
+    #mlflow.log_metrics(metrics_dic, step=epoch)
+    per_model_metrics = [epoch, running_loss] + per_model_metrics
     print(per_model_metrics, flush=True)
 
     if sheetname == 'hyperparam_results':
@@ -163,7 +169,18 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
             evaluation.case_label_from_SIL(config_params, df_test, test_labels_all.cpu().numpy(), test_pred_all.cpu().numpy(), path_to_results_xlsx)
             #evaluation.write_results_xlsx(per_model_metrics_caselevel, path_to_results_xlsx, 'test_results')
 
-def run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname):
+def run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname, epoch):
     path_to_trained_model = path_to_model
     model1 = load_model_for_testing(model, path_to_trained_model)
-    test(config_params, model1, dataloader_test, batches_test,  df_test, path_to_results_xlsx, sheetname)
+    
+    #load model from mlflow to check if the model saved in mlflow works
+    #path_to_trained_model = '/homes/spathak/multiview_mammogram/multiinstance-learning-mammography/src/mlartifacts/386620200319207163/c75cb1a8951f4fefa88047209e8734e5/artifacts/model_8.tar'
+    #model1 = load_model_for_testing(model, path_to_trained_model)
+
+    #save the final model for testing in mlflow
+    #input_schema = Schema([TensorSpec(np.dtype(np.float32), (-1, 428, 28))])
+    #output_schema = Schema([TensorSpec(np.dtype(np.float32), (-1, 10))])
+    #signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+    #mlflow.pytorch.log_model(model1, "final_model")
+    
+    test(config_params, model1, dataloader_test, batches_test,  df_test, path_to_results_xlsx, sheetname, epoch)

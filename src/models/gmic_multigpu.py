@@ -27,7 +27,7 @@ import numpy as np
 from torchvision._internally_replaced_utils import load_state_dict_from_url
 
 from utilities import data_augmentation_utils, gmic_utils
-from models import gmic_modules as m
+from models import gmic_modules_multigpu as m
 
 
 model_urls = {
@@ -53,23 +53,23 @@ class GMIC(nn.Module):
 
         # construct networks
         # global network
-        self.global_network = m.GlobalNetwork(self.experiment_parameters, self)
-        self.global_network.add_layers()
+        self.global_network = m.GlobalNetwork(self.experiment_parameters)
+        #self.global_network.add_layers()
 
         # aggregation function
-        self.aggregation_function = m.TopTPercentAggregationFunction(self.experiment_parameters, self)
+        self.aggregation_function = m.TopTPercentAggregationFunction(self.experiment_parameters)
 
         # detection module
-        self.retrieve_roi_crops = m.RetrieveROIModule(self.experiment_parameters, self)
+        self.retrieve_roi_crops = m.RetrieveROIModule(self.experiment_parameters)
 
         # detection network
-        self.roitransform = data_augmentation_utils.ROIRotateTransform([0, 90, 180, 270])
-        self.local_network = m.LocalNetwork(self.experiment_parameters, self)
-        self.local_network.add_layers()
+        #self.roitransform = data_augmentation_utils.ROIRotateTransform([0, 90, 180, 270])
+        self.local_network = m.LocalNetwork()
+        #self.local_network.add_layers()
 
         # MIL module
-        self.attention_module = m.AttentionModule(self.experiment_parameters, self)
-        self.attention_module.add_layers()
+        self.attention_module = m.AttentionModule(self.experiment_parameters)
+        #self.attention_module.add_layers()
 
         # fusion branch
         if self.experiment_parameters['learningtype'] == 'SIL':
@@ -127,25 +127,24 @@ class GMIC(nn.Module):
         #print("output:", output)
         return output
 
-
     def forward(self, x_original, eval_mode):
         """
         :param x_original: N,H,W,C numpy matrix
         """
         #print("gmic:", x_original.get_device(), x_original.shape)
         # global network: x_small -> class activation map
-        h_g, self.saliency_map, sal_map_before_sigmoid = self.global_network.forward(x_original)
+        h_g, self.saliency_map, sal_map_before_sigmoid = self.global_network(x_original)
         #print("h_g shape:", h_g.shape, flush=True)
         #print("saliency map shape:", self.saliency_map.shape, flush=True)
         #print("h_g:", h_g.shape) #3, 512, 92, 60
         # calculate y_global
         # note that y_global is not directly used in inference
-        topt_feature, self.y_global = self.aggregation_function.forward(self.saliency_map, sal_map_before_sigmoid)
+        topt_feature, self.y_global = self.aggregation_function(self.saliency_map, sal_map_before_sigmoid)
         #print("topt features shape:", topt_feature.shape, flush=True)
         #print("y_global shape:", self.y_global.shape, flush=True)
 
         # gmic region proposal network
-        small_x_locations = self.retrieve_roi_crops.forward(x_original, self.cam_size, self.saliency_map)
+        small_x_locations = self.retrieve_roi_crops(x_original, self.cam_size, self.saliency_map)
         #print("small x location shape:", small_x_locations.shape, flush=True)
 
         # convert crop locations that is on self.cam_size to x_original
@@ -170,16 +169,16 @@ class GMIC(nn.Module):
         #        crops_variable[i, :, :, :] = self.roitransform(crops_variable[i, :, :, :])
         #        #plt.imsave(str(i)+'_roi.png', crops_variable[i, 0, :, :].cpu().numpy(), cmap='gray', vmin=-2.117, vmax=2.248)
         
-        h_crops = self.local_network.forward(crops_variable).view(batch_size, num_crops, -1)
+        h_crops = self.local_network(crops_variable).view(batch_size, num_crops, -1)
         #input('halt')
         # MIL module
         # y_local is not directly used during inference
         if self.experiment_parameters['learningtype'] == 'SIL':
-            z, self.patch_attns, self.y_local = self.attention_module.forward(h_crops)
+            z, self.patch_attns, self.y_local = self.attention_module(h_crops)
             #print("z shape", z.shape, flush=True)
             #print("y_local shape", self.y_local.shape, flush=True)
         elif self.experiment_parameters['learningtype'] == 'MIL':
-            z, self.patch_attns = self.attention_module.forward(h_crops)
+            z, self.patch_attns = self.attention_module(h_crops)
 
         # fusion branch
         # use max pooling to collapse the feature map

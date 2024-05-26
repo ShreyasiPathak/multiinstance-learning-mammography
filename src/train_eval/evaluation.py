@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn import metrics
+#import mlflow
 
-def results_store_excel(train_res, val_res, test_res, per_model_metrics, correct_train, total_images_train, train_loss, correct_test, total_images_test, test_loss, epoch, conf_mat_train, conf_mat_test, lr, auc_val, path_to_results, path_to_results_text):
+def results_store_excel(train_res, val_res, test_res, per_model_metrics, correct_train, total_images_train, train_loss, correct_test, total_images_test, test_loss, epoch, conf_mat_train, conf_mat_test, lr, auc_val, auc_valmacro, path_to_results, path_to_results_text):
     lines = [epoch+1, lr]
     if train_res:
         avg_train_loss=train_loss/total_images_train
@@ -20,6 +21,8 @@ def results_store_excel(train_res, val_res, test_res, per_model_metrics, correct
         f1_train_neg=2*recall_train_neg*prec_train_neg/(recall_train_neg+prec_train_neg)
         f1macro_train=(f1_train+f1_train_neg)/2
         lines.extend([avg_train_loss, accuracy_train, f1macro_train, recall_train, speci_train])
+        metrics_dic_train = {"loss_train": avg_train_loss, "accuracy_train": accuracy_train, "f1macro_train": f1macro_train}
+        #mlflow.log_metrics(metrics_dic_train, step=epoch)
 
     if val_res:
         speci_test=conf_mat_test[0,0]/sum(conf_mat_test[0,:])
@@ -32,7 +35,9 @@ def results_store_excel(train_res, val_res, test_res, per_model_metrics, correct
         prec_test_neg=conf_mat_test[0,0]/sum(conf_mat_test[:,0])
         f1_test_neg=2*recall_test_neg*prec_test_neg/(recall_test_neg+prec_test_neg)
         f1macro_test=(f1_test+f1_test_neg)/2
-        lines.extend([avg_test_loss, accuracy_test, f1macro_test, recall_test, speci_test, auc_val])
+        lines.extend([avg_test_loss, accuracy_test, f1macro_test, recall_test, speci_test, auc_val, auc_valmacro])
+        metrics_dic_val = {"loss_val": avg_test_loss, "accuracy_val": accuracy_test, "f1macro_val": f1macro_test} 
+        #mlflow.log_metrics(metrics_dic_val, step=epoch)      
 
     if test_res:
         lines.extend(per_model_metrics)
@@ -146,18 +151,76 @@ def calc_viewwise_metric(views_names, views_standard, count_dic_viewwise, test_l
     
     return count_dic_viewwise
 
+def calc_viewwise_metric_newplot(views_names, views_standard, count_dic_viewwise, test_labels, test_pred, output_test):
+    #view names concatenated together
+    views_names_key="+".join(views_names)
+    
+    #number of views
+    views_count_key=str(len(views_names))
+
+    #number of views and number of breast sides
+    breast_split = np.array([view[0] for view in views_names])
+    breast_split = breast_split.tolist()
+
+    flag=0
+    for view in views_names:
+        if view not in views_standard:
+            flag=1
+    
+    #store all possible dictionary keys
+    dic_keys = []
+    if flag==0:
+        dic_keys.append('views_std')
+        if views_count_key == '4':
+            dic_keys.append('4_views_std')
+    else:
+        dic_keys.append('views_nonstd')
+    
+    if (breast_split.count('L')>1) and (breast_split.count('R')==0):
+        dic_keys.append('n>1L')
+        dic_keys.append('oneside')
+    if (breast_split.count('L')==0) and (breast_split.count('R')>1):
+        dic_keys.append('n>1R')
+        dic_keys.append('oneside')
+    
+    if views_count_key=='1':
+        dic_keys.append('singleimage')
+        if breast_split.count('L')==1:
+            dic_keys.append('1L')
+        elif breast_split.count('R')==1:
+            dic_keys.append('1R')
+    
+    if (breast_split.count('L')==1) and (breast_split.count('R')==1):
+        dic_keys.append('1L+1R')
+    
+    if (breast_split.count('L')>1) and (breast_split.count('R')>1):
+        dic_keys.append('nL+mR')
+    
+    for key in dic_keys:
+        if key in count_dic_viewwise.keys():
+            count_dic_viewwise[key]['true'] = np.append(count_dic_viewwise[key]['true'],test_labels.cpu().numpy())
+            count_dic_viewwise[key]['pred'] = np.append(count_dic_viewwise[key]['pred'],test_pred.cpu().numpy())
+            count_dic_viewwise[key]['prob'] = np.append(count_dic_viewwise[key]['prob'],torch.sigmoid(output_test.data).cpu().numpy())
+        else:
+            count_dic_viewwise[key]={}
+            count_dic_viewwise[key]['true'] = test_labels.cpu().numpy()
+            count_dic_viewwise[key]['pred'] = test_pred.cpu().numpy()
+            count_dic_viewwise[key]['prob'] = torch.sigmoid(output_test.data).cpu().numpy()
+    
+    return count_dic_viewwise
+
 def write_results_viewwise(config_params, path_to_results_xlsx, sheetname, count_dic_viewwise):
     wb = op.load_workbook(path_to_results_xlsx)
     if count_dic_viewwise!={}:
         for key in count_dic_viewwise.keys():
-            if key=='4_views_std':
-                print(key)
-                per_model_metrics = aggregate_performance_metrics(config_params, count_dic_viewwise[key]['true'],count_dic_viewwise[key]['pred'],count_dic_viewwise[key]['prob'])
-                header = [key]
-                sheet = wb[sheetname]
-                sheet.append(header)
-                sheet.append(['Count','PrecisionBin','PrecisionMicro','PrecisionMacro','RecallBin','RecallMicro','RecallMacro','F1Bin','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
-                sheet.append([len(count_dic_viewwise[key]['true'])]+per_model_metrics)
+            #if key=='4_views_std':
+            print(key)
+            per_model_metrics = aggregate_performance_metrics(config_params, count_dic_viewwise[key]['true'],count_dic_viewwise[key]['pred'],count_dic_viewwise[key]['prob'])
+            header = [key]
+            sheet = wb[sheetname]
+            sheet.append(header)
+            sheet.append(['Count','PrecisionBin','PrecisionMicro','PrecisionMacro','RecallBin','RecallMicro','RecallMacro','F1Bin','F1Micro','F1macro','F1wtmacro','Acc','Cohens Kappa','AUC'])
+            sheet.append([len(count_dic_viewwise[key]['true'])]+per_model_metrics)
     wb.save(path_to_results_xlsx)
 
 def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all, path_to_results):
@@ -171,7 +234,8 @@ def case_label_from_SIL(config_params, df_test, test_labels_all, test_pred_all, 
         image_col = 'ImageName'
     elif config_params['dataset'] == 'vindr':
         image_col = 'StudyInstanceUID'
-
+    elif config_params['dataset'] == 'cmmd':
+        image_col = 'Patient_Id'
 
     test_pred_all = test_pred_all.reshape(-1)
     #print(test_labels_all)
@@ -303,13 +367,22 @@ def write_results_subgroup(path_to_results, sheetname, results_all):
     wb.save(path_to_results)
 
 def aggregate_performance_metrics(config_params, y_true, y_pred, y_prob): 
-    prec_bin = metrics.precision_score(y_true, y_pred, average = 'binary')
+    try:
+        prec_bin = metrics.precision_score(y_true, y_pred, average = 'binary')
+    except:
+        prec_bin = 0.0
     precmicro = metrics.precision_score(y_true, y_pred, average = 'micro')
     precmacro = metrics.precision_score(y_true, y_pred, average = 'macro')
-    recall_bin = metrics.recall_score(y_true, y_pred, average = 'binary')
+    try:
+        recall_bin = metrics.recall_score(y_true, y_pred, average = 'binary')
+    except:
+        recall_bin = 0.0
     recallmicro = metrics.recall_score(y_true, y_pred, average = 'micro')
     recallmacro = metrics.recall_score(y_true, y_pred, average = 'macro')
-    f1_bin = metrics.f1_score(y_true, y_pred, average = 'binary')
+    try:
+        f1_bin = metrics.f1_score(y_true, y_pred, average = 'binary')
+    except:
+        f1_bin = 0.0
     f1micro = metrics.f1_score(y_true, y_pred, average = 'micro')
     f1macro = metrics.f1_score(y_true, y_pred, average='macro')
     f1wtmacro=metrics.f1_score(y_true, y_pred, average='weighted')
@@ -317,13 +390,20 @@ def aggregate_performance_metrics(config_params, y_true, y_pred, y_prob):
     cohen_kappa=metrics.cohen_kappa_score(y_true, y_pred)
     try:
         if len(config_params['classes']) > 2:
-            auc=metrics.roc_auc_score(y_true, y_prob, multi_class='ovo')
+            auc = metrics.roc_auc_score(y_true, y_prob, average='macro', multi_class='ovo')
+            auc_wtmacro = metrics.roc_auc_score(y_true, y_prob, average='weighted', multi_class='ovo')
         else:
             auc=metrics.roc_auc_score(y_true,y_prob)
+            auc_wtmacro=0.0
     except:
         auc=0.0
+        auc_wtmacro=0.0
     
-    each_model_metrics=[prec_bin, precmicro, precmacro, recall_bin, recallmicro, recallmacro, f1_bin, f1micro, f1macro, f1wtmacro, acc, cohen_kappa, auc]
+    each_model_metrics=[prec_bin, precmicro, precmacro, recall_bin, recallmicro, recallmacro, f1_bin, f1micro, f1macro, f1wtmacro, acc, cohen_kappa, auc, auc_wtmacro]
+    #don't uncomment this - I don't use the part below to log metrics to MLflow.
+    #metrics_dic = {"Test precision positive class": prec_bin, "Test precision micro": precmicro, "Test precision macro": precmacro, "Test recall positive class": recall_bin, "Test recall micro": recallmicro, "Test recall macro": recallmacro, "Test f1 positive class": f1_bin, "Test f1 micro": f1micro, "Test f1 macro": f1macro, "Test f1 wt macro": f1wtmacro, "Test accuracy": acc, "Test cohen kappa": cohen_kappa, "Test AUC": auc, "Test AUC wt macro": auc_wtmacro}
+    #with mlflow.start_run():
+    #mlflow.log_metrics(metrics_dic)
     return each_model_metrics
 
 def classspecific_performance_metrics(config_params, y_true, y_pred, y_prob, path_to_results, sheetname):

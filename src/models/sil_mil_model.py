@@ -7,7 +7,7 @@ import torchvision
 from torchvision.models.resnet import BasicBlock
 import warnings
 
-from models import resnetkim, resnet, densenet, gmic, wu_resnet
+from models import resnetkim, resnet, densenet, gmic, wu_resnet, convnext_features, gmic_multigpu
 
 views_allowed=['LCC','LMLO','RCC','RMLO']
 
@@ -35,14 +35,18 @@ class SILmodel(nn.Module):
             elif self.featureextractormodel == 'resnet50':
                 self.feature_extractor = resnet.resnet50(pretrained = self.pretrained, inchans = self.channel, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling, learningtype = self.learningtype)
             elif self.featureextractormodel == 'densenet121':
-                self.feature_extractor = densenet.densenet121(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+                self.feature_extractor = densenet.densenet121(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling, learningtype = self.learningtype)
             elif self.featureextractormodel == 'densenet169':
-                self.feature_extractor = densenet.densenet169(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling)
+                self.feature_extractor = densenet.densenet169(pretrained = self.pretrained, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling, learningtype = self.learningtype)
             elif self.featureextractormodel == 'kim':
                 self.feature_extractor = resnetkim.resnet18_features(activation = self.activation, learningtype = self.learningtype)
             elif self.featureextractormodel == 'convnext-T':
-                self.feature_extractor = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
-                self.feature_extractor.classifier[2] = nn.Linear(768, 1)
+                #self.feature_extractor = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
+                self.feature_extractor = convnext_features.convnext_tiny_13_features(pretrained=True)
+                self.feature_extractor.classifier[2] = nn.Linear(768, config_params['numclasses'])
+            elif self.featureextractormodel == 'efficientnet':
+                self.feature_extractor = torchvision.models.efficientnet_b0(weights='IMAGENET1K_V1')
+                self.feature_extractor.classifier[1] = nn.Linear(1280, config_params['numclasses'])
             elif self.featureextractormodel == 'gmic_resnet18':
                 self.feature_extractor = gmic._gmic(config_params['gmic_parameters'])
     
@@ -713,8 +717,8 @@ class MILmodel(nn.Module):
         
         if self.featureextractormodel == 'gmic_resnet18':
             #h_all = [h_all_local, h_all_global, h_all_fusion, all_saliency_map]
-            h_all = [h_all_local, h_all_global, h_all_fusion, all_saliency_map, all_patch_locations, all_patches, all_patch_attns, all_patch_features, all_global_vec]
-        
+            #h_all = [h_all_local, h_all_global, h_all_fusion, all_saliency_map, all_patch_locations, all_patches, all_patch_attns, all_patch_features, all_global_vec]
+            h_all = [h_all_local.to(self.device), h_all_global.to(self.device), h_all_fusion.to(self.device), all_saliency_map.to(self.device), all_patch_locations.to(self.device), all_patches.to(self.device), all_patch_attns.to(self.device), all_patch_features.to(self.device), all_global_vec.to(self.device)]
         return h_all
 
     def batched_index_select(self, input, dim, index):
@@ -734,7 +738,7 @@ class MILmodel(nn.Module):
         return out
 
     def forward(self, x, views_names, eval_mode):
-        #print("sil mil model:", views_names, x.get_device(), x.shape)
+        #print("sil mil model:", views_names, x.get_device(), x.shape, flush=True)
         #print("sil mil model:", x.get_device())
         #print("sil mil model:", x.shape)
         h = self.four_view_resnet(x, views_names, eval_mode) #feature extractor, h['LCC'].shape=Nx2x25x25
@@ -851,6 +855,7 @@ class FourViewResNet(nn.Module):
         self.regionpooling = config_params['regionpooling']
         self.learningtype = config_params['learningtype']
         self.device = config_params['device']
+        #self.h_dict = nn.ModuleDict()
 
         if self.featureextractormodel == 'resnet18':
             self.feature_extractor = resnet.resnet18(pretrained = self.pretrained, inchans = self.channel, activation = self.activation, topkpatch = self.topkpatch, regionpooling = self.regionpooling, learningtype = self.learningtype)
@@ -869,28 +874,57 @@ class FourViewResNet(nn.Module):
             self.feature_extractor.classifier = Identity()
             #self.feature_extractor.classifier[2] = nn.Linear(768, 1)
         elif self.featureextractormodel == 'gmic_resnet18':
-            self.feature_extractor = gmic._gmic(config_params['gmic_parameters'])
+            self.feature_extractor = gmic_multigpu._gmic(config_params['gmic_parameters'])
 
     def forward(self, x, views_names, eval_mode):
-        #print("four view resnet:", x.get_device(), x.shape)
+        #print("four view resnet:", x.get_device(), x.shape, flush=True)
+
         if len(x.shape) == 5:
             h_dict = {
-                view: self.single_forward(x[:,views_names.index(view),:,:,:], eval_mode)
+                view: self.single_forward(x[:,views_names.index(view),:,:,:], view, eval_mode)
                 for view in views_names
             }
+            #for view in views_names:
+            #    self.h_dict[view] = self.single_forward(x[:,views_names.index(view),:,:,:], view, eval_mode)
         elif len(x.shape) == 4:
             h_dict = {
-                view: self.single_forward(x[:,views_names.index(view),:,:].unsqueeze(1), eval_mode)
+                view: self.single_forward(x[:,views_names.index(view),:,:].unsqueeze(1), view, eval_mode)
                 for view in views_names
             }
+            #for view in views_names:
+            #    self.h_dict[view] = self.single_forward(x[:,views_names.index(view),:,:].unsqueeze(1), view, eval_mode)
+
         return h_dict
 
-    def single_forward(self, single_view, eval_mode):
+    def single_forward(self, single_view, view, eval_mode):
+        #print("which device:", view, single_view.get_device(), single_view.shape, flush=True)
+
         if self.featureextractormodel == 'gmic_resnet18':
+
             local_feature, topt_feature_global, y_global, fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec = self.feature_extractor(single_view, eval_mode)
+            #print("local feature:", local_feature.device, local_feature.shape, flush=True)
             #print(topt_feature_global.shape) # N,3,110
             single_view_feature = [local_feature, topt_feature_global.squeeze(1), fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec]
         else:
             single_view_feature = self.feature_extractor(single_view)
             #print(single_view_feature.shape)
         return single_view_feature
+    
+    '''def forward(self, x, views_names, eval_mode):
+        print("four view resnet:", x.get_device(), x.shape, flush=True)
+        h_dict={}
+        for view in views_names:
+            if len(x.shape) == 5:
+                single_view = x[:,views_names.index(view),:,:,:]
+            elif len(x.shape) == 4:
+                single_view = x[:,views_names.index(view),:,:].unsqueeze(1)
+            
+            if self.featureextractormodel == 'gmic_resnet18':
+                local_feature, topt_feature_global, y_global, fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec = self.feature_extractor(single_view, eval_mode)
+                print("local feature:", local_feature.device, local_feature.shape, flush=True)
+                h_dict[view] = [local_feature, topt_feature_global.squeeze(1), fusion_feature, saliency_map, patch_locations, patches, patch_attns, patch_feature, global_vec]
+            else:
+                h_dict[view] = self.feature_extractor(single_view)
+
+        return h_dict
+    '''

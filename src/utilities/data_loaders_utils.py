@@ -15,6 +15,8 @@ from torch.utils.data import Dataset, Sampler
 
 from utilities import utils, data_augmentation_utils, gmic_utils
 
+#import mlflow
+
 views_allowed_gmic = ['L-CC','L-MLO','R-CC','R-MLO']
 
 class BreastCancerDataset_generator(Dataset):
@@ -450,6 +452,8 @@ def collect_images_12bits(config_params, data, views_allowed):
         img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
         breast_side = data['Views'][0]
         img/=4095
+        #print("img name:", img_path.split('/')[-1].split('.npy')[0]+".png")
+        #mlflow.log_image(cv2.resize(img, dsize=(224,224)), img_path.split('/')[-1].split('.npy')[0]+".png")
         img = torch.from_numpy(img.transpose((2, 0, 1))).contiguous()
         if config_params['flipimage']:
             hflip_img = data_augmentation_utils.MyHorizontalFlip()

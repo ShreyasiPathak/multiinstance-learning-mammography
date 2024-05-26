@@ -256,7 +256,7 @@ class DownsampleNetworkResNet18V1(ResNetV1):
         return last_feature_map
 
 
-class AbstractMILUnit:
+'''class AbstractMILUnit:
     """
     An abstract class that represents an MIL unit module
     """
@@ -264,7 +264,7 @@ class AbstractMILUnit:
         #super(AbstractMILUnit, self).__init__()
         self.parameters = parameters
         self.parent_module = parent_module
-
+'''
 
 class PostProcessingStandard(nn.Module):
     """
@@ -287,18 +287,18 @@ class PostProcessingStandard(nn.Module):
         return out, normalized_saliencymap 
 
 
-class GlobalNetwork(AbstractMILUnit):
+class GlobalNetwork(nn.Module):
     """
     Implementation of Global Network using ResNet-22
     """
-    def __init__(self, parameters, parent_module):
-        super(GlobalNetwork, self).__init__(parameters, parent_module)
+    def __init__(self, parameters):
+        super(GlobalNetwork, self).__init__()
         # downsampling-branch
         self.parameters = parameters
         if "use_v1_global" in parameters and parameters["use_v1_global"]:
-            self.downsampling_branch = DownsampleNetworkResNet18V1()
+            self.ds_net = DownsampleNetworkResNet18V1()
         else:
-            self.downsampling_branch = ResNetV2(input_channels=1, num_filters=16,
+            self.ds_net = ResNetV2(input_channels=1, num_filters=16,
                      # first conv layer
                      first_layer_kernel_size=(7,7), first_layer_conv_stride=2,
                      first_layer_padding=3,
@@ -310,30 +310,29 @@ class GlobalNetwork(AbstractMILUnit):
                      block_fn=BasicBlockV2,
                      growth_factor=2)
         # post-processing
-        self.postprocess_module = PostProcessingStandard(parameters)
+        self.left_postprocess_net = PostProcessingStandard(parameters)
 
-    def add_layers(self):
-        self.parent_module.ds_net = self.downsampling_branch
-        self.parent_module.left_postprocess_net = self.postprocess_module
+    #def add_layers(self):
+    #    self.parent_module.ds_net = self.downsampling_branch
+    #    self.parent_module.left_postprocess_net = self.postprocess_module
 
     def forward(self, x):
         # retrieve results from downsampling network at all 4 levels
-        last_feature_map = self.downsampling_branch.forward(x)
+        last_feature_map = self.ds_net(x)
         #print("last feature map:",last_feature_map.shape) #N, 512, 92, 60
         # feed into postprocessing network
-        cam_before_sigmoid, cam = self.postprocess_module.forward(last_feature_map)
+        cam_before_sigmoid, cam = self.left_postprocess_net(last_feature_map)
         #print("cam:", cam.shape)
         return last_feature_map, cam, cam_before_sigmoid
 
-class TopTPercentAggregationFunction(AbstractMILUnit):
+class TopTPercentAggregationFunction(nn.Module):
     """
     An aggregator that uses the SM to compute the y_global.
     Use the sum of topK value
     """
-    def __init__(self, parameters, parent_module):
-        super(TopTPercentAggregationFunction, self).__init__(parameters, parent_module)
+    def __init__(self, parameters):
+        super(TopTPercentAggregationFunction, self).__init__()
         self.percent_t = parameters["percent_t"]
-        self.parent_module = parent_module
 
     def forward(self, cam, cam_before_sig):
         batch_size, num_class, H, W = cam.size()
@@ -344,13 +343,13 @@ class TopTPercentAggregationFunction(AbstractMILUnit):
         return selected_area, selected_area.mean(dim=2)
 
 
-class RetrieveROIModule(AbstractMILUnit):
+class RetrieveROIModule(nn.Module):
     """
     A Regional Proposal Network instance that computes the locations of the crops
     Greedy select crops with largest sums
     """
-    def __init__(self, parameters, parent_module):
-        super(RetrieveROIModule, self).__init__(parameters, parent_module)
+    def __init__(self, parameters):
+        super(RetrieveROIModule, self).__init__()
         self.crop_method = "upper_left"
         self.num_crops_per_class = parameters["K"]
         self.crop_shape = parameters["crop_shape"]
@@ -416,17 +415,18 @@ class RetrieveROIModule(AbstractMILUnit):
         return torch.cat(all_max_position, dim=1).data.cpu().numpy()
 
 
-class LocalNetwork(AbstractMILUnit):
+class LocalNetwork(nn.Module):
     """
     The local network that takes a crop and computes its hidden representation
     Use ResNet
     """
-    def add_layers(self):
+    def __init__(self):
+        super(LocalNetwork, self).__init__()
         """
         Function that add layers to the parent module that implements nn.Module
         :return:
         """
-        self.parent_module.dn_resnet = ResNetV1(64, BasicBlockV1, [2,2,2,2], 3)
+        self.dn_resnet = ResNetV1(64, BasicBlockV1, [2,2,2,2], 3)
 
     def forward(self, x_crop):
         """
@@ -435,13 +435,12 @@ class LocalNetwork(AbstractMILUnit):
         :return:
         """
 
-        '''for name, param in self.parent_module.dn_resnet.named_parameters():
-            if param.requires_grad:
-                print(f"in single forward, {name} -> {param.device}", flush=True)
-        '''
-        
+        #for name, param in self.dn_resnet.named_parameters():
+        #    if param.requires_grad:
+        #        print(f"in single forward, {name} -> {param.device}", flush=True)
+
         # forward propagte using ResNet
-        res = self.parent_module.dn_resnet(x_crop.expand(-1, 3, -1 , -1))
+        res = self.dn_resnet(x_crop.expand(-1, 3, -1 , -1))
         #print("in local network:", x_crop.shape)
         #res = self.parent_module.dn_resnet(x_crop)
         # global average pooling
@@ -449,23 +448,25 @@ class LocalNetwork(AbstractMILUnit):
         return res
 
 
-class AttentionModule(AbstractMILUnit):
+class AttentionModule(nn.Module):
     """
     The attention module takes multiple hidden representations and compute the attention-weighted average
     Use Gated Attention Mechanism in https://arxiv.org/pdf/1802.04712.pdf
     """
-    def add_layers(self):
+    def __init__(self, parameters):
+        super(AttentionModule, self).__init__()
         """
         Function that add layers to the parent module that implements nn.Module
         :return:
         """
+        self.parameters = parameters
         # The gated attention mechanism
-        self.parent_module.mil_attn_V = nn.Linear(512, 128, bias=False)
-        self.parent_module.mil_attn_U = nn.Linear(512, 128, bias=False)
+        self.mil_attn_V = nn.Linear(512, 128, bias=False)
+        self.mil_attn_U = nn.Linear(512, 128, bias=False)
         '''if self.parameters["num_classes"] > 1:
             self.parent_module.mil_attn_w = nn.Linear(128, self.parameters["num_classes"], bias=False)
         else:'''
-        self.parent_module.mil_attn_w = nn.Linear(128, 1, bias=False)
+        self.mil_attn_w = nn.Linear(128, 1, bias=False)
         # classifier
         if self.parameters['learningtype'] == 'SIL':
             '''if self.parameters["num_classes"] > 1:
@@ -473,7 +474,7 @@ class AttentionModule(AbstractMILUnit):
                 for k in range(self.parameters["num_classes"]):
                     self.parent_module.classifier_linear.append(nn.Linear(512, 1, bias=False))
             else:'''
-            self.parent_module.classifier_linear = nn.Linear(512, self.parameters["num_classes"], bias=False)
+            self.classifier_linear = nn.Linear(512, self.parameters["num_classes"], bias=False)
 
     def forward(self, h_crops):
         """
@@ -486,9 +487,9 @@ class AttentionModule(AbstractMILUnit):
         h_crops_reshape = h_crops.view(batch_size * num_crops, h_dim)
         
         # calculate the attn score
-        attn_projection = torch.sigmoid(self.parent_module.mil_attn_U(h_crops_reshape)) * \
-                          torch.tanh(self.parent_module.mil_attn_V(h_crops_reshape))
-        attn_score = self.parent_module.mil_attn_w(attn_projection)
+        attn_projection = torch.sigmoid(self.mil_attn_U(h_crops_reshape)) * \
+                          torch.tanh(self.mil_attn_V(h_crops_reshape))
+        attn_score = self.mil_attn_w(attn_projection)
         
         # use softmax to map score to attention
         '''if self.parameters['num_classes'] > 1:
@@ -516,10 +517,7 @@ class AttentionModule(AbstractMILUnit):
                 for k in range(self.parameters['num_classes']):
                     y_crops[:, k] = self.parent_module.classifier_linear[k](z_weighted_avg[:,k,:])
             else:'''
-            y_crops = self.parent_module.classifier_linear(z_weighted_avg)
+            y_crops = self.classifier_linear(z_weighted_avg)
             return z_weighted_avg, attn, y_crops
         elif self.parameters['learningtype'] == 'MIL':
             return z_weighted_avg, attn
-
-
-

@@ -26,8 +26,10 @@ def mask_paths(config_params):
     file path of bounding box location after image cleaning for all datasets 
     """
     if config_params['dataset'] == 'cbis-ddsm':
-        mask_path = '/projects/dso_mammovit/project_kushal/data/roi-images/'
-        image_size_path = '/projects/dso_mammovit/project_kushal/data/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv'
+        #mask_path = '/projects/dso_mammovit/project_kushal/data/roi-images/'
+        #image_size_path = '/projects/dso_mammovit/project_kushal/data/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv'
+        mask_path = '/deepstore/datasets/dmb/medical/breastcancer/mammography/cbis-ddsm/roi-images/'
+        image_size_path = '/deepstore/datasets/dmb/medical/breastcancer/mammography/cbis-ddsm/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv'
     
     elif config_params['dataset'] == 'vindr':
         mask_path = '/groups/dso/spathak/vindr/physionet.org/files/vindr-mammo/1.0.0/finding_annotations.csv'

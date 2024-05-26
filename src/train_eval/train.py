@@ -29,12 +29,17 @@ from analysis import attention_wt_extraction, visualize_roi, featurevector_hook,
 from models import sil_mil_model, wu_resnet
 from utilities import pytorchtools, utils, dynamic_training_utils
 from setup import read_config_file, read_input_file, output_files_setup
+#import mlflow
+
+#from torchviz import make_dot
 
 #import tensorboard_log
 
 #pd.set_option('display.max_columns', None)  # or 1000
 #pd.set_option('display.max_rows', None)  # or 1000
 pd.set_option('display.max_colwidth', None)  # or 199
+
+#os.environ["PATH"] += os.pathsep + "/homes/spathak/.conda/envs/pytorch-env/lib/python3.9/site-packages/graphviz/dot"
 
 def set_random_seed(config_params):
     #random state initialization of the code - values - 8, 24, 30
@@ -55,9 +60,16 @@ def model_initialization(config_params):
         model = sil_mil_model.MILmodel(config_params)
     elif config_params['learningtype'] == 'MV':
         model = wu_resnet.SplitBreastModel(config_params)
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name)
+    #for name, param in model.named_parameters():
+    #    if param.requires_grad:
+    #        print(f"{name} -> {param.device}", flush=True)
+    #        #print(name)
+    
+    # Log model summary.
+    with open("model_summary.txt", "w") as f:
+        f.write(str(model))
+    #mlflow.log_artifact("model_summary.txt")
+
     #print(model)
     if config_params['device']=='cuda':
         #cuda_device_list=list(map(int, config_params['device'].split(':')[1].split(',')))
@@ -65,6 +77,12 @@ def model_initialization(config_params):
     model.to(torch.device(config_params['device']))
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total model parameters:", pytorch_total_params, flush=True)
+    count_param=0
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name} -> {param.device}", flush=True)
+            count_param+=1           
+    print("Number of parameters that require gradient: ", count_param, flush=True)
 
     return model, pytorch_total_params
 
@@ -72,15 +90,22 @@ def model_checkpoint(config_params, path_to_model):
     if config_params['patienceepochs']:
         modelcheckpoint = pytorchtools.EarlyStopping(path_to_model=path_to_model, early_stopping_criteria=config_params['early_stopping_criteria'], patience=config_params['patienceepochs'], verbose=True)
     elif config_params['usevalidation']:
-        modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model, verbose=True)
+        modelcheckpoint = pytorchtools.ModelCheckpoint(path_to_model=path_to_model, criteria=config_params['early_stopping_criteria'], verbose=True)
     return modelcheckpoint
 
 def train(config_params, model, path_to_model, data_iterator_train, data_iterator_val, batches_train, batches_val, df_train):
     '''Training'''
     if config_params['usevalidation']:
         modelcheckpoint = model_checkpoint(config_params, path_to_model)
-    optimizer = optimization.optimizer_fn(config_params, model)
-    scheduler = optimization.select_lr_scheduler(config_params, optimizer)
+    if config_params['trainingmethod'] == 'cosineannealing_pipnet':
+        optimizer, optimizer_classifier = optimization.optimizer_fn(config_params, model)
+        scheduler, scheduler_classifier = optimization.select_lr_scheduler(config_params, [optimizer, optimizer_classifier], batches_train)
+        lrs_classifier = []
+        lrs_scheduler = []
+    else:
+        optimizer = optimization.optimizer_fn(config_params, model)
+        scheduler = optimization.select_lr_scheduler(config_params, optimizer, batches_train)
+        lrs_scheduler = []
     class_weights_train = loss_function.class_imbalance(config_params, df_train)
 
     if os.path.isfile(path_to_model):
@@ -112,14 +137,21 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         if config_params['trainingmethod'] == 'multisteplr1':
             model = utils.layer_selection_for_training(model,epoch, config_params['trainingmethod'], epoch_step=5)
         
+        count_param=0
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                count_param+=1           
+        print("Number of parameters that require gradient: ", count_param, flush=True)
+
         for train_idx, train_batch, train_labels, views_names in data_iterator_train:
             print('Current Time after one batch loading:', time.ctime(time.time()), flush = True)
             train_batch = train_batch.to(config_params['device'])
             train_labels = train_labels.to(config_params['device'])
             train_labels = train_labels.view(-1)
             print("train batch:", train_batch.shape, flush=True)
+            print("views name:", views_names)
 
-            if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
+            if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
                 model, optimizer, state_before_optim, lr_before_optim = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
             
             if config_params['femodel'] == 'gmic_resnet18':
@@ -178,11 +210,31 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             '''
 
             optimizer.zero_grad()  # clear previous gradients, compute gradients of all variables wrt loss
+            if config_params['trainingmethod'] == 'cosineannealing_pipnet':
+                optimizer_classifier.zero_grad()    
+            
             loss.backward()
+
+            #make_dot(loss, params=dict(model.named_parameters())).render("attached", format="png")
+            
             optimizer.step() # performs updates using calculated gradients
+            if config_params['trainingmethod'] == 'cosineannealing_pipnet':
+                optimizer_classifier.step()
+
+            #switch on the following part for consine annealing pipnet training method for blackbox.
+            '''if scheduler!=None: 
+                scheduler.step()
+                print("scheduler lr:",scheduler.get_last_lr()[0], flush=True)
+                lrs_scheduler.append(scheduler.get_last_lr()[0])
+                if config_params['trainingmethod'] == 'cosineannealing_pipnet':
+                    scheduler_classifier.step()
+                    print("scheduler lr:",scheduler_classifier.get_last_lr()[0], flush=True)
+                    lrs_classifier.append(scheduler_classifier.get_last_lr()[0])
+            '''
+
             batch_no=batch_no+1
 
-            if config_params['viewsinclusion'] == 'all' and config_params['extra'] == 'dynamic_training':
+            if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
                 model, optimizer = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
 
             '''weights_after_backprop = [] # weights after backprop
@@ -191,9 +243,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             
             for i in zip(parameter_name, weights_before_backprop, weights_after_backprop):
                 if torch.equal(i[1],i[2]):
-                    print(i[0], torch.equal(i[1],i[2]))
-            input('halt')
+                    print(i[0], torch.equal(i[1],i[2]), flush=True)
             '''
+            #input('halt')
+            
 
             #performance metrics of training dataset
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
@@ -206,15 +259,26 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
             current_lr=optimizer.param_groups[0]['lr']
         print("current lr:",current_lr, flush=True)
         
+        '''plt.clf()
+        plt.plot(lrs_scheduler)
+        plt.savefig(os.path.join(config_params['path_to_output'],'lr_net'+'_'+str(config_params['randseedother'])+'_'+str(config_params['randseeddata'])+'.png'))
+        try:
+            plt.clf()
+            plt.plot(lrs_classifier)
+            plt.savefig(os.path.join(config_params['path_to_output'],'lr_class'+'_'+str(config_params['randseedother'])+'_'+str(config_params['randseeddata'])+'.png'))
+        except:
+            pass
+        '''
+
         running_train_loss = loss_train/total_images_train
 
         # early_stopping needs the validation loss to check if it has decresed, 
         # and if it has, it will make a checkpoint of the current model
         
         if config_params['usevalidation']:
-            correct_test, total_images_val, loss_val, conf_mat_val, auc_val = validation(config_params, model, data_iterator_val, batches_val, df_val, epoch)
+            correct_test, total_images_val, loss_val, conf_mat_val, auc_val, auc_valmacro = validation(config_params, model, data_iterator_val, batches_val, df_val, epoch)
             valid_loss = loss_val/total_images_val
-            evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val, path_to_results_xlsx, path_to_results_text)
+            evaluation.results_store_excel(True, True, False, None, correct_train, total_images_train, loss_train, correct_test, total_images_val, loss_val, epoch, conf_mat_train, conf_mat_val, current_lr, auc_val, auc_valmacro, path_to_results_xlsx, path_to_results_text)
         
         if config_params['patienceepochs']:
             modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
@@ -224,6 +288,11 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         else:
             if config_params['usevalidation']:
                 modelcheckpoint(valid_loss, model, optimizer, epoch, conf_mat_train, conf_mat_val, running_train_loss, auc_val)
+                test.test(config_params, model, dataloader_test, batches_test,  df_test, path_to_results_xlsx, 'test_results', epoch)
+                #per_model_metrics, conf_mat_test = test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
+                #evaluation.results_store_excel(True, False, True, per_model_metrics, correct_train, total_images_train, loss_train, None, None, None, epoch, conf_mat_train, None, current_lr, None, path_to_results_xlsx, path_to_results_text)
+                #evaluation.write_results_xlsx_confmat(config_params, conf_mat_test, path_to_results_xlsx, 'confmat_train_val_test')
+                #evaluation.write_results_xlsx(per_model_metrics, path_to_results_xlsx, 'test_results')
             else:
                 utils.save_model(model, optimizer, epoch, running_train_loss, path_to_model)
                 per_model_metrics, conf_mat_test = test(config_params, model, path_to_model, data_iterator_val, batches_val, df_test)
@@ -343,8 +412,14 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
         val_loss, val_loss/total_images, correct, total_images,
         100. * correct / total_images,epoch+1), flush=True)
     
-    auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy(), multi_class='ovo')
-    return correct, total_images, val_loss, conf_mat_val, auc
+    if config_params['numclasses'] > 2:
+        auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy(), average='macro', multi_class='ovo')
+        auc_wtmacro = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy(), average='weighted', multi_class='ovo')
+    else:
+        auc = metrics.roc_auc_score(val_labels_all.cpu().numpy(), output_all_ten.cpu().numpy())
+        auc_wtmacro = 0.0
+
+    return correct, total_images, val_loss, conf_mat_val, auc, auc_wtmacro
 
 if __name__=='__main__':
     #read arguments
@@ -379,6 +454,16 @@ if __name__=='__main__':
 
     mode = args.mode
 
+    '''
+    # Create a new MLflow Experiment
+    mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
+    
+    mlflow.set_experiment("ZGT-case-level-ES-Att-img5")
+
+    #with mlflow.start_run():
+    mlflow.log_params(vars(args))
+    '''
+
     #read all instructed config files
     config_file_names = glob.glob(args.config_file_path+'/config*')
     config_file_names = sorted(config_file_names, key=lambda x: int(re.search(r'\d+$', x.split('.')[-2]).group()))
@@ -388,8 +473,10 @@ if __name__=='__main__':
         begin_time = datetime.datetime.now()
         
         config_params = read_config_file.read_config_file(config_file)
+        #make the batchsize 1 for ROI calculation and ROI visualization
         #config_params['batchsize'] = 1
         config_params['path_to_output'] = "/".join(config_file.split('/')[:-1])
+        
         g = set_random_seed(config_params)
         
         if config_params['usevalidation']:
@@ -402,6 +489,9 @@ if __name__=='__main__':
             dataloader_train, dataloader_test = data_loader.dataloader(config_params, df_train, None, df_test, view_group_indices_train, g)
         
         model, total_params = model_initialization(config_params)
+
+        #df_test.to_csv('./zgt_test_set_case-level_model_randomseed8.csv', sep=';', na_rep='NULL', index=False)
+        #input('halt')
 
         if mode == 'train':
             #training the model
@@ -423,7 +513,7 @@ if __name__=='__main__':
         
         #test the model
         #print(df_test['Views'].str.split('+').str.len().groupby())
-        test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results')
+        test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results', 'test')
         
         #save attention weights
         #path_to_attentionwt = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"

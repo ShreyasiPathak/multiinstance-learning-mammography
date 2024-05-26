@@ -70,7 +70,7 @@ def loss_fn_gmic_initialize(config_params, class_weights, test_bool):
     elif config_params['activation'] == 'softmax':
         if test_bool or not config_params['classimbalance']:
             logitloss = nn.CrossEntropyLoss()
-            loss = nn.CrossEntropyLoss()
+            loss = nn.NLLLoss()
         
         elif config_params['classimbalance'] == 'wtcostfunc':
             logitloss = nn.CrossEntropyLoss(class_weights)
@@ -82,16 +82,26 @@ def loss_fn_gmic(config_params, logitloss, loss, y_local, y_global, y_fusion, sa
     if config_params['classimbalance'] == 'poswt' and not test_bool:
         weight_batch = torch.tensor([1,class_weights[0]]).to(config_params['device'])[y_true.long()]
         loss.weight = weight_batch
+    
+    #print("local:", y_local, y_true)
     local_network_loss = logitloss(y_local, y_true)
     if config_params['activation'] == 'sigmoid': 
         y_global = torch.clamp(y_global, 0, 1)
         global_network_loss = loss(y_global, y_true)
     
     elif config_params['activation'] == 'softmax':
+        #print("global:", y_global, y_true)
         global_network_loss = logitloss(y_global, y_true)
+    
+    #print("fusion:", y_fusion, y_true)
     fusion_network_loss = logitloss(y_fusion, y_true)
+    
     if config_params['learningtype'] == 'SIL':
-        saliency_map_regularizer = torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1],-1), ord=1, dim=2))
+        if config_params['numclasses']>1:
+            #print(saliency_map.shape) # 12 (N), 5 (classes), 48, 24
+            saliency_map_regularizer = torch.mean(torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1], -1), ord=1, dim=2), dim=1))
+        else:
+            saliency_map_regularizer = torch.mean(LA.norm(saliency_map.view(saliency_map.shape[0], saliency_map.shape[1], -1), ord=1, dim=2))
     elif config_params['learningtype'] == 'MIL':
         if config_params['numclasses'] == 3:
             #print("saliency map:", saliency_map.shape) #N,4,3,92,60

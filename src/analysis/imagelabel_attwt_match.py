@@ -53,6 +53,13 @@ def extract_img_attn_wts(config_params, img_attns):
             A_right_both = torch.mul(A_right, A_both[:,:,1])
             A_all = torch.cat((A_left_both, A_right_both), dim=2)
             A_all = A_all.view(1, -1).data.cpu().numpy()
+        elif (A_left is None) and (A_right is None) and (A_both is not None):
+            A_all = A_both.view(1, -1).data.cpu().numpy()
+        elif (A_left is not None) and (A_right is None) and (A_both is None):
+            A_all = A_left.view(1, -1).data.cpu().numpy()
+        elif (A_left is None) and (A_right is not None) and (A_both is None):
+            A_all = A_right.view(1, -1).data.cpu().numpy()
+
         #print(A_all)
         #input('halt')
     return A_all
