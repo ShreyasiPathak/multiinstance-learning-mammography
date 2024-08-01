@@ -203,6 +203,48 @@ class CustomGroupbyViewFullRandomSampler(Sampler):
            view_group_length[name]=len(item)
         return view_group_length
 
+class CustomGroupbyViewFullRandomSamplerOrderBased(Sampler):
+    def __init__(self, view_group_dic, batch_size, subset, order):
+        self.view_group_dic = view_group_dic
+        self.view_group_names = list(self.view_group_dic.keys())
+        self.subset = subset
+        self.batch_size = batch_size
+        self.order_views = order
+    
+    def __iter__(self):
+        total_indices=[]
+        view_group_name_dup = copy.deepcopy(self.view_group_names)
+        view_group_dic_dup = copy.deepcopy(self.view_group_dic)
+        #print("view_group_dic_dup:", view_group_dic_dup, flush=True)
+        if self.order_views == 'descendorder':
+            view_group_dic_dup = dict(sorted(view_group_dic_dup.items(), key=lambda item: len(item[1]), reverse=True))
+        elif self.order_views == 'ascendorder':
+            view_group_dic_dup = dict(sorted(view_group_dic_dup.items(), key=lambda item: len(item[1]), reverse=False))
+        #print("sorted keys:", view_group_dic_dup.keys(), flush=True)
+        #print("view_group_dic_dup:", view_group_dic_dup, flush=True)
+        #for key in view_group_name_dup.keys():
+        while view_group_name_dup:    
+            #key=random.sample(view_group_name_dup,1)[0]
+            key =   next(iter(view_group_dic_dup.keys()))
+            if len(view_group_dic_dup[key])>self.batch_size:
+                selected_index=random.sample(view_group_dic_dup[key],self.batch_size)
+                insert_val=zip(selected_index,[key]*self.batch_size)
+                total_indices.extend(insert_val)
+                view_group_dic_dup[key] = [num for num in view_group_dic_dup[key] if num not in selected_index] 
+            else:
+                total_indices.extend(zip(view_group_dic_dup[key],[key]*len(view_group_dic_dup[key])))
+                view_group_dic_dup.pop(key,None)
+                view_group_name_dup.pop(view_group_name_dup.index(key))
+                view_group_name_dup=list(view_group_dic_dup.keys())
+        iter_shuffledIndices=iter(total_indices)
+        return iter_shuffledIndices
+    
+    def __viewlength__(self):
+        view_group_length={}
+        for name, item in self.view_group_dic.items():
+           view_group_length[name]=len(item)
+        return view_group_length
+
 class CustomGroupbyViewFullRandomBatchSampler(Sampler):
     def __init__(self, sampler, batch_size, view_group_length_dic):
         if not isinstance(sampler, Sampler):

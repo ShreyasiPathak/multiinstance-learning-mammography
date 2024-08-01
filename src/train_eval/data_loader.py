@@ -69,7 +69,10 @@ def dataloader(config_params, df_train, df_val, df_test, view_group_indices_trai
             sampler = data_loaders_utils.CustomGroupbyViewWeightedRandomSampler(config_params, df_train)
             sampler_val = data_loaders_utils.CustomGroupbyViewRandomSampler(df_val, 'val')
         else:
-            sampler = data_loaders_utils.CustomGroupbyViewFullRandomSampler(view_group_indices_train, config_params['batchsize'], 'train')
+            if config_params['extra'] == 'descendorder' or config_params['extra'] == 'ascendorder' or config_params['extra'] == 'xorder':
+                sampler = data_loaders_utils.CustomGroupbyViewFullRandomSamplerOrderBased(view_group_indices_train, config_params['batchsize'], 'train', config_params['extra'])
+            else:
+                sampler = data_loaders_utils.CustomGroupbyViewFullRandomSampler(view_group_indices_train, config_params['batchsize'], 'train')
             sampler_val = data_loaders_utils.CustomGroupbyViewRandomSampler(df_val, 'val')
         
         sampler_test = data_loaders_utils.CustomGroupbyViewRandomSampler(df_test, 'test')
