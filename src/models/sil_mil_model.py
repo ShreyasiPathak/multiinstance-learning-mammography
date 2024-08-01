@@ -180,6 +180,7 @@ class MILpooling(nn.Module):
         self.device = config_params['device']
         self.featureextractormodel = config_params['femodel']
         self.dependency = config_params['dependency']
+        self.region_pooling = config_params['regionpooling']
         self.D = 128
         self.K = 1
         if self.featureextractormodel == 'resnet18' or self.featureextractormodel == 'resnet34':
@@ -195,6 +196,8 @@ class MILpooling(nn.Module):
             self.L_global = int(round(config_params['gmic_parameters']['cam_size'][0]*config_params['gmic_parameters']['cam_size'][1]*config_params['gmic_parameters']['percent_t']))
             self.L_fusion = config_params['gmic_parameters']['post_processing_dim']+512
         
+        self.sigmoid_activation = nn.Sigmoid()
+
         if self.featureextractormodel == 'gmic_resnet18':
             if self.dependency=='selfatt':
                 self.model_selfattention_local_img = SelfAttention(self.L_local, int(self.L_local/4), config_params)
@@ -322,6 +325,7 @@ class MILpooling(nn.Module):
                         A, H = self.model_attention_global_side(h)
                     elif featuretype == 'fusion':
                         A, H = self.model_attention_fusion_side(h)
+                    
                 else:
                     if featuretype == 'local':
                         A, H = self.model_attention_local_img(h)
@@ -380,17 +384,20 @@ class MILpooling(nn.Module):
         #print(featuretype)
         #print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
+        if featuretype == 'local' or featuretype == 'fusion' or featuretype is None:
+            M = self.sigmoid_activation(M) #new addition
         #print("1:",M.shape)
         M = self.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
         #print("2:",M.shape)
         M = M.view(M.shape[0],-1) #Nx2
         #print(M.shape)
         return M
-    
+
     def ISMax(self, featuretype, h_all, views_names):
         #print(featuretype)
         #print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
+        M = self.sigmoid_activation(M) #new addition
         #print(M.shape)
         M = self.MILPooling_ISMax(M, views_names, self.activation) #Nx2 or Nx1
         #print(M.shape)
@@ -400,8 +407,10 @@ class MILpooling(nn.Module):
 
     def ISMax_gmic(self, h_all, views_names):
         x_local = self.classifier_score('local', h_all[0])
+        x_local = self.sigmoid_activation(x_local) #new addition
         x_global = self.classifier_score('global', h_all[1])
         x_fusion = self.classifier_score('fusion', h_all[2])
+        x_fusion = self.sigmoid_activation(x_fusion) #new addition
         x_local = x_local.view(x_local.shape[0],-1)
         x_global = x_global.view(x_global.shape[0],-1)
         x_fusion = x_fusion.view(x_fusion.shape[0],-1)
@@ -415,12 +424,17 @@ class MILpooling(nn.Module):
     
     def ISAtt(self, featuretype, h_all, views_names): #same for ISGatt
         M = self.classifier_score(featuretype, h_all)
+        if featuretype == 'local' or featuretype == 'fusion':
+            M = self.sigmoid_activation(M)
+        #print("classifier score:", M)
         if len(views_names)>1:
             A, _ = self.attention_weights(featuretype, h_all) #Nx2xL
             A, M = self.MILPooling_attention(A, M) #NxL
         else:
             A = None
         M = M.view(M.shape[0],-1)
+        #print(A)
+        #print("weighted score:", M)
         return M, A
 
     #calculate attention scores from the global vector from global network, ResNet
@@ -491,6 +505,176 @@ class MILpooling(nn.Module):
         M = self.classifier_score(featuretype, h_all) 
         M = M.view(M.shape[0],-1)
         return M
+
+    def ISAtt_breastwise(self, featuretype, h_view, views_names):    
+        views_names_left = np.array([view for view in views_names if view[0]=='L'])
+        views_names_left = views_names_left.tolist()
+        
+        views_names_right = np.array([view for view in views_names if view[0]=='R'])
+        views_names_right = views_names_right.tolist()
+
+        if featuretype is None:
+            if len(views_names_left)>1:
+                for counter, view in enumerate(views_names_left):
+                    if counter == 0:
+                        h_left = h_view[view].unsqueeze(1)
+                    else:
+                        h_left = torch.cat((h_left, h_view[view].unsqueeze(1)), dim=1)   
+                
+                score_left = self.classifier_score(featuretype, h_left)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_left = self.sigmoid_activation(score_left)
+                
+                A_left, _ = self.attention_weights(featuretype, h_left) #Nx2xL
+                _, h_left = self.MILPooling_attention(A_left, h_left) #Nx1xL
+                A_left, score_left = self.MILPooling_attention(A_left, score_left) #Nx1xL
+
+            elif len(views_names_left)==1:
+                h_left = h_view[views_names_left[0]].unsqueeze(1) #Nx1xL
+                h_left = self.reshape(h_left)
+                score_left = self.classifier_score(featuretype, h_left)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_left = self.sigmoid_activation(score_left)
+                A_left = None
+                
+            else:
+                h_left = torch.zeros(size=(0,1),device=self.device)
+                A_left = None
+            
+            if len(views_names_right)>1:
+                for counter1, view in enumerate(views_names_right):
+                    if counter1 == 0:
+                        h_right = h_view[view].unsqueeze(1)
+                    else:
+                        h_right = torch.cat((h_right, h_view[view].unsqueeze(1)), dim=1)   
+                
+                score_right = self.classifier_score(featuretype, h_right)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_right = self.sigmoid_activation(score_right)
+
+                A_right, _ = self.attention_weights(featuretype, h_right) #Nx2xL
+                _, h_right = self.MILPooling_attention(A_right, h_right) #Nx1xL
+                A_right, score_right = self.MILPooling_attention(A_right, score_right) #Nx1xL
+
+            elif len(views_names_right)==1:
+                h_right = h_view[views_names_right[0]].unsqueeze(1) #Nx1xL
+                h_right = self.reshape(h_right) #shape=Nx2xL
+                score_right = self.classifier_score(featuretype, h_right)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_right = self.sigmoid_activation(score_right)
+                A_right = None
+                
+            else:
+                h_right = torch.zeros(size=(0,1),device=self.device)
+                A_right = None
+
+        else:
+            if featuretype == 'local':
+                idx_h = 0
+            elif featuretype == 'global':
+                idx_h = 1
+            elif featuretype == 'fusion':
+                idx_h = 2
+
+            if len(views_names_left)>1:
+                for counter, view in enumerate(views_names_left):
+                    if counter == 0:
+                        h_left = h_view[view][idx_h].unsqueeze(1)
+                    else:
+                        h_left = torch.cat((h_left, h_view[view][idx_h].unsqueeze(1)), dim=1)   
+                
+                if self.dependency=='selfatt':
+                    if featuretype == 'local':
+                        h_left = self.model_selfattention_local_img(h_left)
+                    elif featuretype == 'global':
+                        h_left = self.model_selfattention_global_img(h_left)
+                        h_left = torch.sigmoid(h_left)
+                    elif featuretype == 'fusion':
+                        h_left = self.model_selfattention_fusion_img(h_left)
+                
+                score_left = self.classifier_score(featuretype, h_left)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_left = self.sigmoid_activation(score_left)
+                #print("score left", score_left)
+                A_left, _ = self.attention_weights(featuretype, h_left) #Nx2xL
+                _, h_left = self.MILPooling_attention(A_left, h_left)
+                A_left, score_left = self.MILPooling_attention(A_left, score_left) #Nx1xL
+                #print("attention and score left:", A_left, score_left)
+
+            elif len(views_names_left)==1:
+                h_left = h_view[views_names_left[0]][idx_h].unsqueeze(1) #Nx1xL
+                h_left = self.reshape(h_left)
+                score_left = self.classifier_score(featuretype, h_left)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_left = self.sigmoid_activation(score_left)
+                A_left = None
+                
+            else:
+                h_left = torch.zeros(size=(0,1),device=self.device)
+                A_left = None
+            
+            if len(views_names_right)>1:
+                for counter1, view in enumerate(views_names_right):
+                    if counter1 == 0:
+                        h_right = h_view[view][idx_h].unsqueeze(1)
+                    else:
+                        h_right = torch.cat((h_right, h_view[view][idx_h].unsqueeze(1)), dim=1)   
+                
+                if self.dependency == 'selfatt':
+                    if featuretype == 'local':
+                        h_right = self.model_selfattention_local_img(h_right)
+                    elif featuretype == 'global':
+                        h_right = self.model_selfattention_global_img(h_right)
+                        h_right = torch.sigmoid(h_right)
+                    elif featuretype == 'fusion':
+                        h_right = self.model_selfattention_fusion_img(h_right)
+                
+                score_right = self.classifier_score(featuretype, h_right)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_right = self.sigmoid_activation(score_right)
+                #print("score right:", score_right)
+                A_right, _ = self.attention_weights(featuretype, h_right) #Nx2xL
+                _, h_right = self.MILPooling_attention(A_right, h_right)
+                A_right, score_right = self.MILPooling_attention(A_right, score_right) #Nx1xL
+                #print("attention and score right:", A_right, score_right)
+
+            elif len(views_names_right)==1:
+                h_right = h_view[views_names_right[0]][idx_h].unsqueeze(1) #Nx1xL
+                h_right = self.reshape(h_right) #shape=Nx2xL
+                score_right = self.classifier_score(featuretype, h_right)
+                if featuretype == 'local' or featuretype == 'fusion':
+                    score_right = self.sigmoid_activation(score_right)
+                A_right = None
+                
+            else:
+                h_right = torch.zeros(size=(0,1),device=self.device)
+                A_right = None
+            
+        if len(h_left) and len(h_right):
+            h_both = torch.cat((h_left, h_right),dim=1) #shape=Nx2xL
+            #print(h_both.shape)
+            A_final, _ = self.attention_weights(featuretype, h_both, both_breast=True) #shape=Nx2xL
+            
+            score_both = torch.cat((score_left, score_right),dim=1)
+            #print(A_final.shape)
+            #print(score_both.shape)
+            A_final, score_final = self.MILPooling_attention(A_final, score_both)
+            #print("attention and score final:", A_final, score_final)
+
+        elif len(h_left):
+            h_final = h_left
+            score_final = score_left
+            A_final = None
+        
+        elif len(h_right):
+            h_final = h_right
+            score_final = score_right
+            A_final = None
+        
+        if featuretype is None:
+            return score_final
+        else:
+            return score_final, [A_left, A_right, A_final]
 
     def ESAtt_breastwise(self, featuretype, h_view, views_names):
         views_names_left=np.array([view for view in views_names if view[0]=='L'])
@@ -615,11 +799,14 @@ class MILpooling(nn.Module):
             h_final = h_right
             A_final = None
         
-        M = self.classifier_score(featuretype, h_final)
-        if featuretype is None:
-            return M
+        if self.region_pooling=='shu_rgp':
+            return h_final
         else:
-            return M, [A_left, A_right, A_final]
+            M = self.classifier_score(featuretype, h_final)
+            if featuretype is None:
+                return M
+            else:
+                return M, [A_left, A_right, A_final]
     
     def ESSum_breastwise(self, h, views_names):
         if 'LCC' in views_names and 'LMLO' in views_names:
@@ -680,6 +867,8 @@ class MILmodel(nn.Module):
         self.device = config_params['device']
         self.four_view_resnet = FourViewResNet(config_params)
         self.milpooling_block = MILpooling(config_params)
+        self.region_pooling = config_params['regionpooling']
+        self.activation = config_params['activation']
         #self.patch_classifer = PatchClassifier(config_params)
     
     def capture_views(self, h, views_names):
@@ -776,6 +965,14 @@ class MILmodel(nn.Module):
                     y_global = self.milpooling_block.ISMean('global', h_all[1], views_names)
                     y_fusion = self.milpooling_block.ISMean('fusion', h_all[2], views_names)
                     att_fusion = None
+                elif self.region_pooling=='shu_rgp':
+                    M = self.four_view_resnet.feature_extractor.fc(h_all)
+                    #print("logit:", M)
+                    M = nn.Sigmoid()(M) #new addition
+                    #print("prob:", M)
+                    M = self.milpooling_block.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
+                    y_pred = M.view(M.shape[0],-1) #Nx2
+                    #print("y pred:", y_pred)
                 else:
                     y_pred = self.milpooling_block.ISMean(None, h_all, views_names)
             
@@ -815,9 +1012,23 @@ class MILmodel(nn.Module):
                     y_fusion, att_fusion = self.milpooling_block.ESAtt_breastwise('fusion', h, views_names)
                     #all_saliency_map = self.capture_saliency_map(h, views_names)
                     #print(y_local, y_global, y_fusion)
-                    
+                elif self.region_pooling=='shu_rgp':
+                    h_final = self.milpooling_block.ESAtt_breastwise(None, h, views_names)
+                    y_pred = self.four_view_resnet.feature_extractor.fc(h_final)
                 else:
                     y_pred = self.milpooling_block.ESAtt_breastwise(None, h, views_names)
+            
+            elif self.milpooling=='isatt' or self.milpooling=='isgatt':
+                if self.featureextractormodel == 'gmic_resnet18':
+                    y_local, att_local = self.milpooling_block.ISAtt_breastwise('local', h, views_names)
+                    y_global, att_global = self.milpooling_block.ISAtt_breastwise('global', h, views_names)
+                    #y_global = self.milpooling_block.ISMean('global', h_all[1], views_names)
+                    y_fusion, att_fusion = self.milpooling_block.ISAtt_breastwise('fusion', h, views_names)
+                    #all_saliency_map = self.capture_saliency_map(h, views_names)
+                    #print(y_local, y_global, y_fusion)
+                    
+                else:
+                    y_pred = self.milpooling_block.ISAtt_breastwise(None, h, views_names)
         
         '''print(h_all[6].shape)
         print("att fusion:", att_fusion)
@@ -831,6 +1042,12 @@ class MILmodel(nn.Module):
         y_patch = None
 
         if self.featureextractormodel == 'gmic_resnet18':
+            '''print("y_local:", y_local, flush=True)
+            print("y_global:", y_global, flush=True)
+            print("y_fusion:",y_fusion, flush=True)
+            print("att_fusion:", att_fusion, flush=True) 
+            print("patch attention:", h_all[6], flush=True)
+            '''
             return y_local, y_global, y_fusion, h_all[3], h_all[4], h_all[5], h_all[6], att_fusion, y_patch
         else:
             return y_pred
@@ -874,7 +1091,7 @@ class FourViewResNet(nn.Module):
             self.feature_extractor.classifier = Identity()
             #self.feature_extractor.classifier[2] = nn.Linear(768, 1)
         elif self.featureextractormodel == 'gmic_resnet18':
-            self.feature_extractor = gmic_multigpu._gmic(config_params['gmic_parameters'])
+            self.feature_extractor = gmic._gmic(config_params['gmic_parameters'])
 
     def forward(self, x, views_names, eval_mode):
         #print("four view resnet:", x.get_device(), x.shape, flush=True)

@@ -14,11 +14,13 @@ import datetime
 import argparse
 import random
 
+import csv
 import glob
 import torch.nn as nn
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from openpyxl import Workbook
 
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
@@ -29,6 +31,7 @@ from analysis import attention_wt_extraction, visualize_roi, featurevector_hook,
 from models import sil_mil_model, wu_resnet
 from utilities import pytorchtools, utils, dynamic_training_utils
 from setup import read_config_file, read_input_file, output_files_setup
+from analysis import grad_mom_analysis
 #import mlflow
 
 #from torchviz import make_dot
@@ -125,6 +128,9 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         elif config_params['activation'] == 'sigmoid':
             lossfn = loss_function.loss_fn_bce(config_params, class_weights_train, test_bool=False)
     
+    avg_mom_img = []
+    avg_mom_side = []
+
     for epoch in range(start_epoch,config_params['maxepochs']):
         model.train()
         loss_train=0.0
@@ -143,16 +149,66 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 count_param+=1           
         print("Number of parameters that require gradient: ", count_param, flush=True)
 
+        '''case_size = []
+        case_grad_dic_img = dict()
+        case_grad_dic_side = dict()
+        case_mom_size = [] 
+        case_mom_dic_img = dict() 
+        case_mom_dic_side = dict()
+
+        wb = Workbook()
+        sheet1 = wb.active
+        sheet1.title="results"
+        header = ['BatchNum','ViewName','AvgMomImg','AvgMomSide']
+        sheet1.append(header)
+        wb.save(os.path.join(config_params['path_to_output'], 'average_mom_epoch'+str(epoch)+'.xlsx'))
+
+        wb1 = Workbook()
+        sheet2 = wb1.active
+        sheet2.title="results"
+        header2 = ['BatchNum','ViewName','AvgGradImg','AvgGradSide']
+        sheet2.append(header2)
+        wb1.save(os.path.join(config_params['path_to_output'], 'average_grad_epoch'+str(epoch)+'.xlsx'))
+        '''
+
         for train_idx, train_batch, train_labels, views_names in data_iterator_train:
             print('Current Time after one batch loading:', time.ctime(time.time()), flush = True)
-            train_batch = train_batch.to(config_params['device'])
-            train_labels = train_labels.to(config_params['device'])
-            train_labels = train_labels.view(-1)
             print("train batch:", train_batch.shape, flush=True)
             print("views name:", views_names)
 
             if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
                 model, optimizer, state_before_optim, lr_before_optim = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
+            
+            '''weights_before_backprop = []
+            parameter_name=[]
+
+            for name, param in model.named_parameters(): # loop the weights in the model before updating and store them
+                parameter_name.append(name)
+                weights_before_backprop.append(param.clone())
+            '''
+
+            optimizer.zero_grad()  # clear previous gradients, compute gradients of all variables wrt loss
+            
+            '''
+            #grad accumulation code
+            loss_batch = 0
+            
+            for start_batch_id in range(0, train_batch1.shape[0], 2):
+                if (start_batch_id+2)>train_batch1.shape[0]:
+                    train_batch = train_batch1[start_batch_id:]
+                    train_labels = train_labels1[start_batch_id:]
+                else:
+                    train_batch = train_batch1[start_batch_id:start_batch_id+2]
+                    train_labels = train_labels1[start_batch_id:start_batch_id+2]
+            '''
+            train_batch = train_batch.to(config_params['device'])
+            train_labels = train_labels.to(config_params['device'])
+            train_labels = train_labels.view(-1)
+            #print("train batch:", train_batch.shape, flush=True)
+            #print("views name:", views_names)
+
+            #if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
+            #    model, optimizer, state_before_optim, lr_before_optim = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, None, None, True)
             
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
@@ -170,7 +226,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                     output_batch_global = output_batch_global.view(-1)
                     output_batch_fusion = output_batch_fusion.view(-1)
                     train_labels = train_labels.float()
-                    pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        pred = torch.ge(output_batch_fusion, torch.tensor(0.5)).float()
+                    else:    
+                        pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
                 
                 elif config_params['activation'] == 'softmax':
                     pred = output_batch_fusion.argmax(dim=1, keepdim=True)
@@ -189,11 +248,21 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                         output_batch = output_batch.squeeze(1)
                     output_batch = output_batch.view(-1)                                                                    
                     train_labels = train_labels.float()
-                    pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        pred = torch.ge(output_batch, torch.tensor(0.5)).float()
+                    else:
+                        pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
                     if config_params['classimbalance'] == 'focalloss':
                         loss = sigmoid_focal_loss(output_batch, train_labels, alpha=-1, reduction='mean')
                     else:
+                        if config_params['classimbalance'] == 'poswt':
+                            if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                                weight_batch = torch.tensor([1, class_weights_train[0]]).to(config_params['device'])[train_labels.long()]
+                                lossfn.weight = weight_batch
+                                #print(weight_batch)
+                        
                         loss = lossfn(output_batch, train_labels)
+                        #print("loss:", loss)
                 
                 elif config_params['activation'] == 'softmax':
                     pred = output_batch.argmax(dim=1, keepdim=True)
@@ -209,15 +278,21 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 weights_before_backprop.append(param.clone())
             '''
 
-            optimizer.zero_grad()  # clear previous gradients, compute gradients of all variables wrt loss
+            #optimizer.zero_grad()  # clear previous gradients, compute gradients of all variables wrt loss
             if config_params['trainingmethod'] == 'cosineannealing_pipnet':
                 optimizer_classifier.zero_grad()    
             
+            '''
+            #grad accumulation code
+            loss = (train_batch.shape[0]*loss)/train_batch1.shape[0]
+            loss_batch+=loss.item()
+            '''
+            loss_batch=loss.item()
             loss.backward()
 
             #make_dot(loss, params=dict(model.named_parameters())).render("attached", format="png")
             
-            optimizer.step() # performs updates using calculated gradients
+            #optimizer.step() # performs updates using calculated gradients
             if config_params['trainingmethod'] == 'cosineannealing_pipnet':
                 optimizer_classifier.step()
 
@@ -232,10 +307,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                     lrs_classifier.append(scheduler_classifier.get_last_lr()[0])
             '''
 
-            batch_no=batch_no+1
+            #batch_no=batch_no+1
 
-            if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
-                model, optimizer = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
+            #if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
+            #    model, optimizer = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
 
             '''weights_after_backprop = [] # weights after backprop
             for name, param in model.named_parameters():
@@ -250,7 +325,30 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
 
             #performance metrics of training dataset
             correct_train, total_images_train, conf_mat_train, _ = evaluation.conf_mat_create(pred, train_labels, correct_train, total_images_train, conf_mat_train, config_params['classes'])
-            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()), flush = True)
+            #print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss.item()), flush = True)
+            #print('Current Time after one batch training:', time.ctime(time.time()), flush=True)
+
+            ''' save the gradients of attention block'''
+            #case_size, case_grad_dic_img, case_grad_dic_side = grad_mom_analysis.grad_analysis(model, config_params, views_names, case_size, case_grad_dic_img, case_grad_dic_side, epoch, batch_no)
+            
+            batch_no=batch_no+1
+            optimizer.step() # performs updates using calculated gradients
+            if config_params['viewsinclusion'] == 'all' and ((config_params['extra'] == 'dynamic_training_async') or (config_params['extra'] == 'dynamic_training_sync') or (config_params['extra'] == 'dynamic_training_momentumupdate')):
+                model, optimizer = dynamic_training_utils.dynamic_training(config_params, views_names, model, optimizer, state_before_optim, lr_before_optim, False)
+            
+            ''' save the momentum of attention block'''
+            #case_mom_size, case_mom_dic_img, case_mom_dic_side, avg_mom_img, avg_mom_side = grad_mom_analysis.momentum_analysis(optimizer, config_params, views_names, case_mom_size, case_mom_dic_img, case_mom_dic_side, avg_mom_img, avg_mom_side, epoch, batch_no)
+
+            '''weights_after_backprop = [] # weights after backprop
+            for name, param in model.named_parameters():
+                weights_after_backprop.append(param.clone()) # only layer1's weight should update, layer2 is not used
+            
+            for i in zip(parameter_name, weights_before_backprop, weights_after_backprop):
+                if torch.equal(i[1],i[2]):
+                    print(i[0], torch.equal(i[1],i[2]), flush=True)
+            '''
+
+            print('Train: Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, config_params['maxepochs'], batch_no, batches_train, loss_batch), flush = True)
             print('Current Time after one batch training:', time.ctime(time.time()), flush=True)
         
         if scheduler!=None:
@@ -349,7 +447,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                     output_batch_global_val = output_batch_global_val.view(-1)
                     output_batch_fusion_val = output_batch_fusion_val.view(-1)
                     val_labels = val_labels.float()
-                    val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        val_pred = torch.ge(output_batch_fusion_val, torch.tensor(0.5)).float()
+                    else:    
+                        val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
                 
                 elif config_params['activation'] == 'softmax':
                     val_pred = output_batch_fusion_val.argmax(dim=1, keepdim=True)
@@ -368,10 +469,18 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                         output_val = output_val.squeeze(1)
                     output_val = output_val.view(-1)                                                 
                     val_labels=val_labels.float()
-                    val_pred = torch.ge(torch.sigmoid(output_val), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        val_pred = torch.ge(output_val, torch.tensor(0.5)).float()
+                    else:
+                        val_pred = torch.ge(torch.sigmoid(output_val), torch.tensor(0.5)).float()
+                    
                     if config_params['classimbalance']=='focalloss':
                         loss1 = sigmoid_focal_loss(output_val, val_labels, alpha=-1, reduction='mean').item()
                     else:
+                        if config_params['classimbalance'] == 'poswt':
+                            if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                                weight_batch_val = torch.tensor([1, class_weights_val[0]]).to(config_params['device'])[val_labels.long()]
+                                lossfn1.weight = weight_batch_val
                         loss1 = lossfn1(output_val, val_labels).item()
                 elif config_params['activation'] == 'softmax':
                     val_pred = output_val.argmax(dim=1, keepdim=True)
@@ -382,7 +491,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                 val_labels_all = val_labels
                 print(output_val.data.shape, flush=True)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten = torch.sigmoid(output_val.data)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten = output_val.data
+                    else:
+                        output_all_ten = torch.sigmoid(output_val.data)
                 elif config_params['activation'] == 'softmax':
                     output_all_ten = F.softmax(output_val.data,dim=1)
                     if config_params['numclasses'] < 3:
@@ -391,7 +503,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                 val_pred_all = torch.cat((val_pred_all,val_pred),dim=0)
                 val_labels_all = torch.cat((val_labels_all,val_labels),dim=0)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten = torch.cat((output_all_ten, output_val.data),dim=0)
+                    else:
+                        output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
                 elif config_params['activation'] == 'softmax':
                     if config_params['numclasses'] < 3:
                         output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)

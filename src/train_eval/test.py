@@ -19,6 +19,24 @@ def load_model_for_testing(model, path):
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['state_dict'])
     print("checkpoint epoch and loss:", checkpoint['epoch'], checkpoint['loss'])
+    #print(model.four_view_resnet.feature_extractor.ds_net.bn1.running_mean)
+    #print(model.four_view_resnet.feature_extractor.ds_net.bn1.running_var)
+    ar_mean = []
+    ar_std = []
+    ar_layer = []
+    for name, layer in model.named_modules():
+        if 'bn' in name:
+            print(name)
+            #print(layer.running_mean.mean())
+            #print(layer.running_var.mean())
+            ar_layer.append(name)
+            ar_mean.append(layer.running_mean.mean().item())
+            ar_std.append(layer.running_var.mean().item())
+            #print(model+'.'+'.'.join(name.split('.')[:-1])+'.running_mean')
+            #print(params)
+    print(ar_layer)
+    print(ar_mean)
+    print(ar_std)
     return model 
 
 def test(config_params, model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname, epoch):
@@ -60,7 +78,10 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
                     output_batch_global = output_batch_global.view(-1)
                     output_batch_fusion = output_batch_fusion.view(-1)
                     test_labels = test_labels.float()
-                    test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        test_pred = torch.ge(output_batch_fusion, torch.tensor(0.5)).float()
+                    else:
+                        test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
                 
                 elif config_params['activation'] == 'softmax':
                     test_pred = output_batch_fusion.argmax(dim=1, keepdim=True)
@@ -81,7 +102,10 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
                         output_test = output_test.squeeze(1)
                     output_test = output_test.view(-1)                                                 
                     test_labels = test_labels.float()
-                    test_pred = torch.ge(torch.sigmoid(output_test), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        test_pred = torch.ge(output_test, torch.tensor(0.5)).float()
+                    else:
+                        test_pred = torch.ge(torch.sigmoid(output_test), torch.tensor(0.5)).float()
                     loss1 = lossfn1(output_test, test_labels).item()
                 elif config_params['activation']=='softmax':
                     test_pred = output_test.argmax(dim=1, keepdim=True)
@@ -93,7 +117,10 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
                 loss_all = torch.tensor([loss1])
                 print(output_test.data.shape, flush=True)
                 if config_params['activation']=='sigmoid':
-                    output_all_ten=torch.sigmoid(output_test.data)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten=output_test.data
+                    else:
+                        output_all_ten=torch.sigmoid(output_test.data)
                 elif config_params['activation']=='softmax':
                     output_all_ten=F.softmax(output_test.data,dim=1)
                     if config_params['numclasses'] < 3:
@@ -103,7 +130,10 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
                 test_labels_all=torch.cat((test_labels_all,test_labels),dim=0)
                 loss_all = torch.cat((loss_all, torch.tensor([loss1])),dim=0)
                 if config_params['activation']=='sigmoid':
-                    output_all_ten=torch.cat((output_all_ten,torch.sigmoid(output_test.data)),dim=0)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten=torch.cat((output_all_ten,output_test.data),dim=0)
+                    else:
+                        output_all_ten=torch.cat((output_all_ten,torch.sigmoid(output_test.data)),dim=0)
                 elif config_params['activation']=='softmax':
                     if config_params['numclasses'] < 3:
                         output_all_ten=torch.cat((output_all_ten,F.softmax(output_test.data,dim=1)[:,1]),dim=0)
