@@ -210,8 +210,8 @@ class DenseNet(nn.Module):
         self.features.add_module("norm5", nn.BatchNorm2d(num_features))
 
         # Linear layer
-        if self.learningtype == 'SIL':
-            self.fc = nn.Linear(num_features, num_classes)
+        #if self.learningtype == 'SIL':
+        self.fc = nn.Linear(num_features, num_classes)
         
         self.avgpool = nn.AdaptiveAvgPool1d(1)
 
@@ -257,7 +257,7 @@ class DenseNet(nn.Module):
             #print(topk_patch.shape) #20, 437, 1664
             topk_patch_permuted = torch.permute(topk_patch,(0,2,1))
             #print(topk_patch_permuted.shape) #20, 1664, 437
-            print(topk_patch_permuted.shape)
+            #print(topk_patch_permuted.shape)
             out = self.avgpool(topk_patch_permuted)
             out = out.view(out.shape[0],out.shape[1])
             #print(out.shape) #20, 1664
