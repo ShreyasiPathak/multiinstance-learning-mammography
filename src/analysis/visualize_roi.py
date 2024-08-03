@@ -65,7 +65,8 @@ def visualize_example(config_params, input_img_case, saliency_maps_case, true_se
             cm.OrRd.set_under('w', alpha=0)
             subfigure.imshow(malignant_seg, alpha=0.85, cmap=cm.OrRd, clim=[0.9, 1])
         try:
-            subfigure.set_title("input image: $a_{"+views_names[view_id]+"}"+f"= ${img_attention[0]:.2f}")
+            #subfigure.set_title("input image: $a_{"+views_names[view_id]+"}"+f"= ${img_attention[0]:.2f}")
+            subfigure.set_title("input image: "+views_names[view_id])
             subfigure.axis('off')
         except:
             pass
@@ -192,11 +193,11 @@ def model_output(config_params, model, dataloader_test, df_test):
         for test_idx, test_batch, test_labels, views_names in dataloader_test:
             test_batch, test_labels = test_batch.to(config_params['device']), test_labels.to(config_params['device'])
             test_labels = test_labels.view(-1)
-            print("test idx:", test_idx.item())
-            print("test batch:", test_batch.shape)
-            print("Accession Num:", df_test.loc[test_idx.item(), 'AccessionNum'])
-            if df_test.loc[test_idx.item(), 'AccessionNum'] == 6002466686: #6003145061: #6002626200:
-                print("I am in visualize")
+            print("test idx:", test_idx.item(), flush=True)
+            print("test batch:", test_batch.shape, flush=True)
+            print("Accession Num:", df_test.loc[test_idx.item(), 'AccessionNum'], flush=True)
+            if df_test.loc[test_idx.item(), 'AccessionNum'] == 6003020666: #6002394481: #6003020666: #6002466686: #6003145061: #6002626200:
+                print("I am in visualize", flush=True)
                 if config_params['femodel'] == 'gmic_resnet18':
                     if config_params['learningtype'] == 'SIL':
                         loaded_image = data_loaders_utils.collect_images(config_params, df_test.loc[test_idx.item()])
@@ -209,7 +210,13 @@ def model_output(config_params, model, dataloader_test, df_test):
                         patch_attns = patch_attns[:,np.newaxis,:]
                         saliency_map = saliency_map[:, np.newaxis, :, :, :]
                         img_attns = None
-                        exam_name = df_test.loc[test_idx.item(), 'ImageName']
+                        if config_params['dataset'] == 'cbis-ddsm':
+                            exam_name = df_test.loc[test_idx.item(), 'FolderName']
+                        elif config_params['dataset'] == 'vindr':
+                            exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
+                        elif config_params['dataset'] == 'zgt':
+                            exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
+                        #exam_name = df_test.loc[test_idx.item(), 'ImageName']
 
                     elif config_params['learningtype'] == 'MIL':
                         if config_params['dataset'] == 'cbis-ddsm':
@@ -220,7 +227,9 @@ def model_output(config_params, model, dataloader_test, df_test):
                             exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
                         loaded_image, _, _ = data_loaders_utils.collect_cases(config_params, df_test.loc[test_idx.item()])
                         _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
-            
+                        patch_locations = patch_locations.cpu()
+                        patch_imgs = patch_imgs.cpu()
+
                 test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
                 #print(loaded_image)
                 #if test_labels.item() == test_pred.item() == 1:
@@ -250,11 +259,11 @@ def model_output(config_params, model, dataloader_test, df_test):
                 
                 #for visualization the case and ROI candidates; comment the line below if you don't want to visualize it.
                 visualize_example(config_params, loaded_image, saliency_maps, [None, None], patch_locations, patch_imgs, patch_attentions, img_attns, save_dir, config_params['gmic_parameters'], views_names, test_labels.item(), test_pred.item())
-                input('halt')
+                #input('halt')
                 #print("exam name:", exam_name)
             
                 #for calculating the intersection over union and dice similarity score of ROI candidates with the groundtruth ROI.
-                iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'IOU')
+                '''iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'IOU')
                 dsc_any_roi_max, dsc_all_roi_mean, dsc_any_roi_max_highestattnwt = seg_evaluation(config_params, loaded_image, patch_locations, patch_imgs, patch_attentions, img_attns, views_names, exam_name, 'DSC')
                 if iou_any_roi_max!=[]:
                     df_iou[exam_name] = [exam_name, iou_any_roi_max, iou_all_roi_mean, iou_any_roi_max_highestattnwt]
@@ -277,7 +286,8 @@ def model_output(config_params, model, dataloader_test, df_test):
                 #print("dsc exam all roi:", dsc_all_roi_mean)
                 print(test_labels, test_pred)
                 #input('halt')
-    df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['ImageName', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
+                '''
+    '''df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['ImageName', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
     df_img_iou.to_csv(os.path.join(config_params['path_to_output'], "iou_score_test_set.csv"), sep=';',na_rep='NULL',index=False)
     iou_avg_any_roi = iou_sum_any_roi/df_img_iou.shape[0]
     iou_avg_all_roi = iou_sum_all_roi/df_img_iou.shape[0]
@@ -294,6 +304,7 @@ def model_output(config_params, model, dataloader_test, df_test):
     print("dsc avg any roi:", dsc_avg_any_roi)
     print("dsc avg all roi:", dsc_avg_all_roi)
     print("dsc avg any roi hattnwt:", dsc_avg_any_roi_hattnwt)
+    '''
 
 def run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test):
     path_to_trained_model = path_to_model
