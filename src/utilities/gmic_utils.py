@@ -186,7 +186,7 @@ def crop(original_img, crop_shape, crop_position, method="center",
     :param in_place: if in_place, the effective pixels in the crop will be flagged (1.0) in the original_img
     """
     # retrieve inputs
-    I, J = original_img.shape
+    I, J = original_img.shape # rows, columns
     crop_x, crop_y = crop_position
     x_delta, y_delta = crop_shape
 
@@ -207,7 +207,7 @@ def crop(original_img, crop_shape, crop_position, method="center",
     max_x = make_sure_in_range(max_x, 0, I)
     min_y = make_sure_in_range(min_y, 0, J)
     max_y = make_sure_in_range(max_y, 0, J)
-
+    #print("from get crop mask:", min_x, min_y, max_x, max_y)
     # if in_place, flag the original inputs
     if in_place:
         original_img[min_x:max_x, min_y:max_y] = 1.0

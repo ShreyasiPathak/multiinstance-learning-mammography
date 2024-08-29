@@ -21,7 +21,7 @@ def load_model_for_testing(model, path):
     print("checkpoint epoch and loss:", checkpoint['epoch'], checkpoint['loss'])
     #print(model.four_view_resnet.feature_extractor.ds_net.bn1.running_mean)
     #print(model.four_view_resnet.feature_extractor.ds_net.bn1.running_var)
-    ar_mean = []
+    '''ar_mean = []
     ar_std = []
     ar_layer = []
     for name, layer in model.named_modules():
@@ -36,7 +36,7 @@ def load_model_for_testing(model, path):
             #print(params)
     print(ar_layer)
     print(ar_mean)
-    print(ar_std)
+    print(ar_std)'''
     return model 
 
 def test(config_params, model, dataloader_test, batches_test, df_test, path_to_results_xlsx, sheetname, epoch):
