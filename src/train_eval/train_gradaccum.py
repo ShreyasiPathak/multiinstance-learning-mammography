@@ -149,7 +149,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                 count_param+=1           
         print("Number of parameters that require gradient: ", count_param, flush=True)
 
-        case_size = []
+        '''case_size = []
         case_grad_dic_img = dict()
         case_grad_dic_side = dict()
         case_mom_size = [] 
@@ -169,7 +169,8 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
         header2 = ['BatchNum','ViewName','AvgGradImg','AvgGradSide']
         sheet2.append(header2)
         wb1.save(os.path.join(config_params['path_to_output'], 'average_grad_epoch'+str(epoch)+'.xlsx'))
-        
+        '''
+
         for train_idx, train_batch1, train_labels1, views_names in data_iterator_train:
             print('Current Time after one batch loading:', time.ctime(time.time()), flush = True)
             print("train batch:", train_batch1.shape, flush=True)
@@ -225,7 +226,10 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                         output_batch_global = output_batch_global.view(-1)
                         output_batch_fusion = output_batch_fusion.view(-1)
                         train_labels = train_labels.float()
-                        pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
+                        if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                            pred = torch.ge(output_batch_fusion, torch.tensor(0.5)).float()
+                        else:
+                            pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
                     
                     elif config_params['activation'] == 'softmax':
                         pred = output_batch_fusion.argmax(dim=1, keepdim=True)
@@ -244,10 +248,19 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                             output_batch = output_batch.squeeze(1)
                         output_batch = output_batch.view(-1)                                                                    
                         train_labels = train_labels.float()
-                        pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
+                        if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                            pred = torch.ge(output_batch, torch.tensor(0.5)).float()
+                        else:
+                            pred = torch.ge(torch.sigmoid(output_batch), torch.tensor(0.5)).float()
                         if config_params['classimbalance'] == 'focalloss':
                             loss = sigmoid_focal_loss(output_batch, train_labels, alpha=-1, reduction='mean')
                         else:
+                            if config_params['classimbalance'] == 'poswt':
+                                if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                                    weight_batch = torch.tensor([1, class_weights_train[0]]).to(config_params['device'])[train_labels.long()]
+                                    lossfn.weight = weight_batch
+                                    #print(weight_batch)
+                            
                             loss = lossfn(output_batch, train_labels)
                     
                     elif config_params['activation'] == 'softmax':
@@ -432,7 +445,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                     output_batch_global_val = output_batch_global_val.view(-1)
                     output_batch_fusion_val = output_batch_fusion_val.view(-1)
                     val_labels = val_labels.float()
-                    val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        val_pred = torch.ge(output_batch_fusion_val, torch.tensor(0.5)).float()
+                    else:
+                        val_pred = torch.ge(torch.sigmoid(output_batch_fusion_val), torch.tensor(0.5)).float()
                 
                 elif config_params['activation'] == 'softmax':
                     val_pred = output_batch_fusion_val.argmax(dim=1, keepdim=True)
@@ -451,10 +467,18 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                         output_val = output_val.squeeze(1)
                     output_val = output_val.view(-1)                                                 
                     val_labels=val_labels.float()
-                    val_pred = torch.ge(torch.sigmoid(output_val), torch.tensor(0.5)).float()
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        val_pred = torch.ge(output_val, torch.tensor(0.5)).float()
+                    else:
+                        val_pred = torch.ge(torch.sigmoid(output_val), torch.tensor(0.5)).float()
+                    
                     if config_params['classimbalance']=='focalloss':
                         loss1 = sigmoid_focal_loss(output_val, val_labels, alpha=-1, reduction='mean').item()
                     else:
+                        if config_params['classimbalance'] == 'poswt':
+                            if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                                weight_batch_val = torch.tensor([1, class_weights_val[0]]).to(config_params['device'])[val_labels.long()]
+                                lossfn1.weight = weight_batch_val
                         loss1 = lossfn1(output_val, val_labels).item()
                 elif config_params['activation'] == 'softmax':
                     val_pred = output_val.argmax(dim=1, keepdim=True)
@@ -465,7 +489,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                 val_labels_all = val_labels
                 print(output_val.data.shape, flush=True)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten = torch.sigmoid(output_val.data)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten = output_val.data
+                    else:
+                        output_all_ten = torch.sigmoid(output_val.data)
                 elif config_params['activation'] == 'softmax':
                     output_all_ten = F.softmax(output_val.data,dim=1)
                     if config_params['numclasses'] < 3:
@@ -474,7 +501,10 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                 val_pred_all = torch.cat((val_pred_all,val_pred),dim=0)
                 val_labels_all = torch.cat((val_labels_all,val_labels),dim=0)
                 if config_params['activation'] == 'sigmoid':
-                    output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
+                    if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+                        output_all_ten = torch.cat((output_all_ten, output_val.data),dim=0)
+                    else:
+                        output_all_ten = torch.cat((output_all_ten,torch.sigmoid(output_val.data)),dim=0)
                 elif config_params['activation'] == 'softmax':
                     if config_params['numclasses'] < 3:
                         output_all_ten = torch.cat((output_all_ten,F.softmax(output_val.data,dim=1)[:,1]),dim=0)
