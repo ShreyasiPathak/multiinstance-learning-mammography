@@ -8,6 +8,7 @@ import random
 import pickle
 import operator
 import numpy as np
+import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision import transforms
@@ -52,7 +53,7 @@ class BreastCancerDataset_generator(Dataset):
         elif self.config_params['learningtype'] == 'MIL' or self.config_params['learningtype'] == 'MV':
             flag = 0
             data = self.df.loc[idx] #loc is valid because I have reset_index in df_train, df_val and df_test. random data sampling returns index, but as our index is same as the relative position, bpth iloc and loc should work. I am using loc because of groupby view data sampler. 
-            image_list, _, views_saved = collect_cases(self.config_params, data)
+            image_list, _, views_saved, _ = collect_cases(self.config_params, data)
             for j,img in enumerate(image_list):
                 if self.transform:
                     img=self.transform(img)
@@ -378,10 +379,22 @@ def collect_cases(config_params, data):
     breast_side=[]
     image_read_list=[]
     views_saved=[]
+    img_path_list = []
     data1 = {}
     studyuid_path = str(data['FullPath'])
-    series_list = os.listdir(studyuid_path)
+    if config_params['dataset'] == 'zgt':
+        df_si = pd.read_csv(config_params['SIL_csvfilepath'], sep=';')
+        series_list = df_si.loc[df_si['AccessionNum']==data['AccessionNum'], 'ShortPath']
+        series_list = series_list.str.split('/').str[-2].values
+        #if data['AccessionNum']==6002199789:
+        #    print(series_list)
+    else:
+        series_list = os.listdir(studyuid_path)
     series_list = view_extraction(series_list, views_allowed)
+    #if data['AccessionNum']==6002199789:
+    #    print("collect_cases")
+    #    print(series_list)
+    
     #series_list.sort()
     if series_list[0][1].split('.')[-1] == 'png':
         for series in series_list:
@@ -393,11 +406,13 @@ def collect_cases(config_params, data):
                 views_saved.append(series[0])
                 image_read_list.append(img)
                 breast_side.append(series[0][0])
+                img_path_list.append(img_path)
     else:
         for series in series_list:
             series_path = studyuid_path+'/'+series[1]
             img_list = os.listdir(series_path)
             img_list = selecting_data(config_params, img_list)
+
             for image in img_list:
                 img_path = series_path+'/'+image
                 data1['FullPath'] = img_path
@@ -409,11 +424,13 @@ def collect_cases(config_params, data):
                             views_saved.append(series[0])
                             image_read_list.append(img)
                             breast_side.append(series[0][0])
+                            img_path_list.append(img_path)
                     else:
                         views_saved.append(series[0])
                         image_read_list.append(img)
                         breast_side.append(series[0][0])
-    return image_read_list, breast_side, views_saved
+                        img_path_list.append(img_path)
+    return image_read_list, breast_side, views_saved, img_path_list
 
 def collect_images(config_params, data):
     views_allowed = views_allowed_dataset(config_params)
