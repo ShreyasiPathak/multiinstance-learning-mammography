@@ -24,12 +24,13 @@ from openpyxl import Workbook
 
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 
 from train_eval import test, optimization, loss_function, evaluation, data_loader
 from analysis import attention_wt_extraction, visualize_roi, featurevector_hook, imagelabel_attwt_match
 from models import sil_mil_model, wu_resnet
-from utilities import pytorchtools, utils, dynamic_training_utils
+from utilities import pytorchtools, utils, dynamic_training_utils, data_loaders_utils
 from setup import read_config_file, read_input_file, output_files_setup
 from analysis import grad_mom_analysis
 #import mlflow
@@ -628,7 +629,7 @@ if __name__=='__main__':
         
         #test the model
         #print(df_test['Views'].str.split('+').str.len().groupby())
-        test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results', 'test')
+        #test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results', 'test')
         
         #save attention weights
         #path_to_attentionwt = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"
@@ -636,8 +637,40 @@ if __name__=='__main__':
         #attention_wt_extraction.save_attentionwt(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_attentionwt)
 
         #visualize saliency maps and ROI candidates
-        #visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test)
-
+        if config_params['dataset'] == 'zgt':
+            if config_params['learningtype'] == 'MIL':
+                #df_roi = pd.read_csv('/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_roisubset.csv', sep=';')
+                df_roi = pd.read_csv('/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_roisubset.csv', sep=';')
+                df_roi['FullPath'] = config_params['preprocessed_imagepath']+'/'+df_roi['ShortPath']
+                _, preprocess_val = data_loader.data_augmentation(config_params, df_train)
+                dataset_gen_roi = data_loaders_utils.BreastCancerDataset_generator(config_params, df_roi, preprocess_val)
+                sampler_roi = data_loaders_utils.CustomGroupbyViewRandomSampler(df_roi, 'test')
+                view_group_length_roi, view_group_name_roi = sampler_roi.__viewlength__()
+                batch_sampler_roi = data_loaders_utils.CustomGroupbyViewRandomBatchSampler(sampler_roi, 1, view_group_length_roi, view_group_name_roi)
+                dataloader_roi = DataLoader(dataset_gen_roi, batch_size=1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=data_loaders_utils.MyCollateBreastWise, worker_init_fn=data_loader.seed_worker, generator=g, batch_sampler=batch_sampler_roi)
+                visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_roi, df_roi)
+            elif config_params['learningtype'] == 'SIL':
+                #df_roi = pd.read_csv('/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_SI_roisubset.csv', sep=';')
+                df_roi = pd.read_csv('/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_SI_roisubset.csv', sep=';')
+                df_roi['FullPath'] = config_params['preprocessed_imagepath']+df_roi['ShortPath'].str.rstrip('.png')+'.npy'
+                df_roi['Groundtruth'] = df_roi['CaseLabel']
+                _, preprocess_val = data_loader.data_augmentation(config_params, df_train)
+                dataset_gen_roi = data_loaders_utils.BreastCancerDataset_generator(config_params, df_roi, preprocess_val)
+                sampler_roi = data_loaders_utils.CustomGroupbyViewRandomSampler(df_roi, 'test')
+                view_group_length_roi, view_group_name_roi = sampler_roi.__viewlength__()
+                batch_sampler_roi = data_loaders_utils.CustomGroupbyViewRandomBatchSampler(sampler_roi, 1, view_group_length_roi, view_group_name_roi)
+                dataloader_roi = DataLoader(dataset_gen_roi, batch_size=1, shuffle=False, num_workers=config_params['numworkers'], collate_fn=data_loaders_utils.MyCollate, worker_init_fn=data_loader.seed_worker, generator=g, batch_sampler=batch_sampler_roi)
+                visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_roi, df_roi)
+        else:
+            '''df_iou = pd.read_csv('/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/models_results/vindr/ijcai23/modelid25_attentionimagewise_milpoolingismean_viewsinclusionall_femodelgmic_resnet18_learningtypeMIL/iou_score_test_set.csv', sep=';')
+            df_roi = pd.read_csv('/deepstore/datasets/dmb/medical/breastcancer/mammography/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
+            df_roi = df_roi[df_roi['split']=='test']
+            df_iou['ImageName'] = df_iou['ImageName'].str.split('_').str[-1].str.split('.png').str[0]
+            print(df_iou['ImageName'])
+            print(df_roi['ImageName'])
+            print(df_roi[~df_roi['ImageName'].isin(df_iou['ImageName'].unique())]['ImageName'], flush=True)
+            input('halt')'''
+            visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test)
         #match image labels to attention weights
         #imagelabel_attwt_match.run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_test, df_test)
 

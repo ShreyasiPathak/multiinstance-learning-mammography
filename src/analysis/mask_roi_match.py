@@ -3,6 +3,7 @@ import cv2
 import math
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 from utilities import data_augmentation_utils, gmic_utils
@@ -34,6 +35,12 @@ def mask_paths(config_params):
     elif config_params['dataset'] == 'vindr':
         mask_path = '/groups/dso/spathak/vindr/physionet.org/files/vindr-mammo/1.0.0/finding_annotations.csv'
         image_size_path = '/groups/dso/spathak/vindr/vindr_singleinstance_imgpreprocessing_size.csv'
+    
+    elif config_params['dataset'] == 'zgt':
+        mask_path = '/deepstore/datasets/dmb/medical/breastcancer/mammography/zgt/annotate_mammo_roi_zgt_fromtestset/'
+        image_size_path = '/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
+        #mask_path = '/groups/dso/spathak/annotate_mammo_roi_zgt_fromtestset/'
+        #image_size_path = '/homes/spathak/multiview_mammogram/input_data/extracted_annotations_withrle.csv'
 
     return mask_path, image_size_path
 
@@ -198,7 +205,7 @@ def match_to_mask_images_cbis(config_params, original_image, exam_name, model_pa
         for idx in range(model_patch_locations.shape[1]):
             patch_location = model_patch_locations[0, idx, :]
             #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
-            pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location)
+            pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location, 'upper_left')
             if seg_eval_metric=='IOU':
                 iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
             elif seg_eval_metric=='DSC':
@@ -227,7 +234,8 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
 
     #which ROI folders belong to this exam
     print("image_name:", exam_name)
-    df_roi = pd.read_csv('/groups/dso/spathak/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
+    df_roi = pd.read_csv('/deepstore/datasets/dmb/medical/breastcancer/mammography/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
+    #df_roi = pd.read_csv('/groups/dso/spathak/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
     roi_folder_df = df_roi[df_roi['ImageName']==exam_name]#.split('.')[0].split('_')[1]]
     print("roi folder name:", roi_folder_df)
     
@@ -235,15 +243,36 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
     iou_max_over_each_roi = []
     iou_highestattnwt_max_over_each_roi = []
     true_mask_loc_all = [] 
-    
+
     if not roi_folder_df.empty:
         for idx in roi_folder_df.index:
             try:
                 roi_row = roi_folder_df.loc[idx]
                 #print(roi_row)
                 true_mask_image = np.zeros((roi_row['ori_height'], roi_row['ori_width']), dtype=np.uint8)
-                mask_white = np.ones((math.ceil(roi_row['ymax']) - math.ceil(roi_row['ymin']), math.ceil(roi_row['xmax']) - math.ceil(roi_row['xmin'])))
-                true_mask_image[math.ceil(roi_row['ymin']):math.ceil(roi_row['ymax']), math.ceil(roi_row['xmin']):math.ceil(roi_row['xmax'])] = mask_white
+                roi_ymin = math.ceil(roi_row['ymin'])
+                roi_ymax = math.ceil(roi_row['ymax'])
+                roi_xmin = math.ceil(roi_row['xmin'])
+                roi_xmax = math.ceil(roi_row['xmax'])
+                
+                if (roi_ymin<0) or (roi_ymax<0) or (roi_xmin<0) or (roi_xmax<0):
+                    continue
+
+                if roi_ymin<roi_row['pro_min_y'].item():
+                    roi_ymin = roi_row['pro_min_y'].item()
+                if roi_ymax>roi_row['pro_max_y'].item():
+                    roi_ymax = roi_row['pro_max_y'].item()
+                if roi_xmin<roi_row['pro_min_x'].item():
+                    roi_xmin = roi_row['pro_min_x'].item()
+                if roi_xmax>roi_row['pro_max_x'].item():
+                    roi_xmax = roi_row['pro_max_x'].item()
+                
+                mask_white = np.ones((roi_ymax - roi_ymin, roi_xmax - roi_xmin))
+                print("mask coordinate:", roi_ymin, roi_ymax, roi_xmin, roi_xmax, flush=True)
+                print("processed image coordinate:", roi_row['pro_min_y'].item(), roi_row['pro_max_y'].item(), roi_row['pro_min_x'].item(), roi_row['pro_max_x'].item(), flush=True)
+                print("true mask image:", true_mask_image.shape, flush=True)
+                
+                true_mask_image[roi_ymin:roi_ymax, roi_xmin:roi_xmax] = mask_white
                 #plt.imsave('./mask.png', true_mask_image, cmap='gray')
                 true_mask_image = true_mask_image * 255
                 true_mask_image = true_mask_image[roi_row['pro_min_y'].item():roi_row['pro_max_y'].item(), roi_row['pro_min_x'].item():roi_row['pro_max_x'].item()]
@@ -256,13 +285,17 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
                 x,y,w,h = cv2.boundingRect(true_mask_image) 
                 true_mask_loc = [x,y,x+w,y+h]
                 true_mask_loc_all.append(true_mask_loc)
-            
+
+                if (exam_name == '0f714f0b91dcd0ff05a60290440d1004') or (exam_name == '1cbc0ae5d67abccd58a4ba6d657d921e') or (exam_name=='67eba147095e0fb7cc0fb928c08a6fa0') or (exam_name=='6b6b65d46cf68b3673b9a59c4cce9fc8') or (exam_name=='a404014023088ae711fd4445d8b298b4') or (exam_name=='d91825b15e444b4cab3a50b8927a7b6a'):
+                    print("true_mask_loc:", true_mask_loc, flush=True)
+                    print("model patch location:", model_patch_locations, flush=True)
+
                 iou_over_all_patches = []
                 pred_mask_loc_all = []
                 for idx in range(model_patch_locations.shape[1]):
                     patch_location = model_patch_locations[0, idx, :]
                     #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
-                    pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location)
+                    pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location, 'upper_left')
                     if seg_eval_metric=='IOU':
                         iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
                     elif seg_eval_metric=='DSC':
@@ -277,9 +310,97 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
 
                 #append iou over all patches for each roi
                 iou_all_over_each_roi.append(iou_over_all_patches)
-            except:
+            except Exception as e:
+                print(e, flush=True)
                 pass
     
         #fig, ax = bounding_box_true_pred(original_image, true_mask_loc_all, pred_mask_loc_all, view_id, views_names, fig, ax)
+    print("score:", iou_max_over_each_roi)
+    return iou_max_over_each_roi, iou_all_over_each_roi, iou_highestattnwt_max_over_each_roi, fig, ax
+
+def match_to_mask_images_zgt(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax):
+    """
+    Function to calculate how much does the patch extracted by the model match to the true ROI 
+    """
+    #Map this exam (image or case) to a name that is a substring of the ROI folder name
+    mask_path, roi_path = mask_paths(config_params)
+    image_folder_name = exam_name 
+    #print("image_folder_name:", '/'.join(image_folder_name.split('/')[-3:]))
+
+    #which ROI folders belong to this exam
+    roi_folder_split = image_folder_name.split('/')
+    roi_folder = mask_path + '/'.join(roi_folder_split[8:-1])
+    #roi_folder = mask_path + '/'.join(roi_folder_split[5:-1])
+    #print(roi_folder)
+    roi_binarymasks = [filename for filename in os.listdir(roi_folder) if '_binarymask' in filename]
+    #print("roi folder name:", roi_binarymasks)
     
+    #Read the bounding box coordinates generated after passing the original image through the cleaning algorithm
+    df_img_size = pd.read_csv(roi_path, sep=';')
+    #print(df_img_size['image'].str.split('=').str[-1].value)
+    #print('/'.join(roi_folder_split[5:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')
+    #print('/'.join(roi_folder_split[8:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')
+    df_img_size = df_img_size['/'+df_img_size['image'].str.split('=').str[-1]==('/'.join(roi_folder_split[8:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')]
+    #print("df_img_size:", df_img_size)
+    assert df_img_size.empty==False
+    #select the location of the highest attention patch
+    #maxattn_patch_location = model_patch_locations[0, np.argmax(model_patch_attentions), :]
+
+    #calculate segmentation evaluation metric over all ROIs belonging to that exam
+    iou_all_over_each_roi = []
+    iou_max_over_each_roi = []
+    iou_highestattnwt_max_over_each_roi = []
+    true_mask_loc_all = [] 
+
+    if roi_binarymasks!=[]:
+        for roi_binarymask in roi_binarymasks:
+            #correcting mask size: original to preprocessed (cleaning algo) to resize (2944x1920)
+            true_mask_image = cv2.imread(roi_folder+'/'+roi_binarymask) 
+            print("true mask image:", roi_folder+'/'+roi_binarymask)
+            true_mask_image = data_augmentation_utils.myhorizontalflip(true_mask_image, roi_folder_split[-2].split('_')[0][0])
+            true_mask_image = cv2.resize(true_mask_image, dsize=(config_params['resize'][1], config_params['resize'][0]))
+            x,y,w,h = cv2.boundingRect(true_mask_image[:,:,0])
+            true_mask_loc = [x,y,x+w,y+h]
+            true_mask_loc_all.append(true_mask_loc)
+            if true_mask_loc == [0, 0, 0, 0]:
+                continue
+            
+            iou_over_all_patches = []
+            pred_mask_loc_all = []
+            for idx in range(model_patch_locations.shape[1]):
+                patch_location = model_patch_locations[0, idx, :]
+                #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
+                pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location, 'upper_left')
+                #print("pred_mask_loc", pred_mask_loc)
+                if seg_eval_metric=='IOU':
+                    iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
+                elif seg_eval_metric=='DSC':
+                    iou_over_all_patches.append(dice_similarity_score(true_mask_loc, pred_mask_loc))
+                pred_mask_loc_all.append(pred_mask_loc)
+                #print("iou score:", iou_over_all_patches[-1])
+                '''if iou_over_all_patches[-1]>0:
+                    pred_patch = original_image.numpy()[0,pred_mask_loc[1]:pred_mask_loc[3],pred_mask_loc[0]:pred_mask_loc[2]]
+                    print(pred_patch.shape)
+                    plt.imsave('./pred_patch.png', pred_patch, cmap='gray')
+                    true_patch = original_image.numpy()[0,true_mask_loc[1]:true_mask_loc[3],true_mask_loc[0]:true_mask_loc[2]]
+                    print(true_patch.shape)
+                    plt.imsave('./true_patch.png', true_patch, cmap='gray')
+                    input('halt')
+                '''   
+            
+            #max iou over all patches for each roi; [R] where R is number of patches
+            iou_max_over_each_roi.append(max(iou_over_all_patches))
+            
+            #highest attention weighted patch
+            iou_highestattnwt_max_over_each_roi.append(iou_over_all_patches[np.argmax(model_patch_attentions)])
+
+            #append iou over all patches for each roi
+            iou_all_over_each_roi.append(iou_over_all_patches)
+        
+        #fig, ax = bounding_box_true_pred(original_image, true_mask_loc_all, pred_mask_loc_all, view_id, views_names, fig, ax)
+
+        #iou_any_roi = max(iou_max_over_each_roi)
+    print("score:", iou_max_over_each_roi)
+    #input('halt')
+    # max iou over all top-k patches for each roi, iou for each patch for each roi, iou for the patch with highest attention weight for each roi
     return iou_max_over_each_roi, iou_all_over_each_roi, iou_highestattnwt_max_over_each_roi, fig, ax
