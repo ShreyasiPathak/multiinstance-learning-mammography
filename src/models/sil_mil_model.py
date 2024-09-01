@@ -386,12 +386,13 @@ class MILpooling(nn.Module):
         M = self.classifier_score(featuretype, h_all)
         if featuretype == 'local' or featuretype == 'fusion' or featuretype is None:
             M = self.sigmoid_activation(M) #new addition
+        y_pred = M
         #print("1:",M.shape)
         M = self.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
         #print("2:",M.shape)
         M = M.view(M.shape[0],-1) #Nx2
         #print(M.shape)
-        return M
+        return M, y_pred
 
     def ISMax(self, featuretype, h_all, views_names):
         #print(featuretype)
@@ -426,6 +427,7 @@ class MILpooling(nn.Module):
         M = self.classifier_score(featuretype, h_all)
         if featuretype == 'local' or featuretype == 'fusion':
             M = self.sigmoid_activation(M)
+        y_pred = M
         #print("classifier score:", M)
         if len(views_names)>1:
             A, _ = self.attention_weights(featuretype, h_all) #Nx2xL
@@ -435,7 +437,7 @@ class MILpooling(nn.Module):
         M = M.view(M.shape[0],-1)
         #print(A)
         #print("weighted score:", M)
-        return M, A
+        return M, A, y_pred
 
     #calculate attention scores from the global vector from global network, ResNet
     def ISAtt_global(self, featuretype, h_all_topt, h_all_globalvec, views_names): #same for ISGatt
@@ -524,7 +526,8 @@ class MILpooling(nn.Module):
                 score_left = self.classifier_score(featuretype, h_left)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_left = self.sigmoid_activation(score_left)
-                
+                y_pred_left = score_left
+
                 A_left, _ = self.attention_weights(featuretype, h_left) #Nx2xL
                 _, h_left = self.MILPooling_attention(A_left, h_left) #Nx1xL
                 A_left, score_left = self.MILPooling_attention(A_left, score_left) #Nx1xL
@@ -535,6 +538,7 @@ class MILpooling(nn.Module):
                 score_left = self.classifier_score(featuretype, h_left)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_left = self.sigmoid_activation(score_left)
+                y_pred_left = score_left
                 A_left = None
                 
             else:
@@ -551,6 +555,7 @@ class MILpooling(nn.Module):
                 score_right = self.classifier_score(featuretype, h_right)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_right = self.sigmoid_activation(score_right)
+                y_pred_right = score_right
 
                 A_right, _ = self.attention_weights(featuretype, h_right) #Nx2xL
                 _, h_right = self.MILPooling_attention(A_right, h_right) #Nx1xL
@@ -562,6 +567,7 @@ class MILpooling(nn.Module):
                 score_right = self.classifier_score(featuretype, h_right)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_right = self.sigmoid_activation(score_right)
+                y_pred_right = score_right
                 A_right = None
                 
             else:
@@ -595,6 +601,7 @@ class MILpooling(nn.Module):
                 score_left = self.classifier_score(featuretype, h_left)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_left = self.sigmoid_activation(score_left)
+                y_pred_left = score_left
                 #print("score left", score_left)
                 A_left, _ = self.attention_weights(featuretype, h_left) #Nx2xL
                 _, h_left = self.MILPooling_attention(A_left, h_left)
@@ -607,6 +614,7 @@ class MILpooling(nn.Module):
                 score_left = self.classifier_score(featuretype, h_left)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_left = self.sigmoid_activation(score_left)
+                y_pred_left = score_left
                 A_left = None
                 
             else:
@@ -632,6 +640,7 @@ class MILpooling(nn.Module):
                 score_right = self.classifier_score(featuretype, h_right)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_right = self.sigmoid_activation(score_right)
+                y_pred_right = score_right
                 #print("score right:", score_right)
                 A_right, _ = self.attention_weights(featuretype, h_right) #Nx2xL
                 _, h_right = self.MILPooling_attention(A_right, h_right)
@@ -644,6 +653,7 @@ class MILpooling(nn.Module):
                 score_right = self.classifier_score(featuretype, h_right)
                 if featuretype == 'local' or featuretype == 'fusion':
                     score_right = self.sigmoid_activation(score_right)
+                y_pred_right = score_right
                 A_right = None
                 
             else:
@@ -672,9 +682,9 @@ class MILpooling(nn.Module):
             A_final = None
         
         if featuretype is None:
-            return score_final
+            return score_final, [y_pred_left, y_pred_right]
         else:
-            return score_final, [A_left, A_right, A_final]
+            return score_final, [A_left, A_right, A_final], [y_pred_left, y_pred_right]
 
     def ESAtt_breastwise(self, featuretype, h_view, views_names):
         views_names_left=np.array([view for view in views_names if view[0]=='L'])
@@ -933,7 +943,8 @@ class MILmodel(nn.Module):
         h = self.four_view_resnet(x, views_names, eval_mode) #feature extractor, h['LCC'].shape=Nx2x25x25
 
         h_all = self.capture_views(h, views_names)
-        
+        instance_pred = None
+
         if self.attention=='imagewise':
             if self.dependency == 'selfatt':
                 if len(views_names)>1:
@@ -946,9 +957,9 @@ class MILmodel(nn.Module):
 
             if self.milpooling=='isatt' or self.milpooling=='isgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
-                    y_local, att_local = self.milpooling_block.ISAtt('local', h_all[0], views_names)
-                    y_global, att_global = self.milpooling_block.ISAtt('global', h_all[1], views_names)
-                    y_fusion, att_fusion = self.milpooling_block.ISAtt('fusion', h_all[2], views_names)
+                    y_local, att_local, instance_pred = self.milpooling_block.ISAtt('local', h_all[0], views_names)
+                    y_global, att_global, instance_pred = self.milpooling_block.ISAtt('global', h_all[1], views_names)
+                    y_fusion, att_fusion, instance_pred = self.milpooling_block.ISAtt('fusion', h_all[2], views_names)
                 else:
                     y_pred = self.milpooling_block.ISAtt(None, h_all, views_names)
             
@@ -961,9 +972,9 @@ class MILmodel(nn.Module):
         
             elif self.milpooling=='ismean':
                 if self.featureextractormodel == 'gmic_resnet18':
-                    y_local = self.milpooling_block.ISMean('local', h_all[0], views_names)
-                    y_global = self.milpooling_block.ISMean('global', h_all[1], views_names)
-                    y_fusion = self.milpooling_block.ISMean('fusion', h_all[2], views_names)
+                    y_local, instance_pred = self.milpooling_block.ISMean('local', h_all[0], views_names)
+                    y_global, instance_pred = self.milpooling_block.ISMean('global', h_all[1], views_names)
+                    y_fusion, instance_pred = self.milpooling_block.ISMean('fusion', h_all[2], views_names)
                     att_fusion = None
                 elif self.region_pooling=='shu_rgp':
                     M = self.four_view_resnet.feature_extractor.fc(h_all)
@@ -974,7 +985,7 @@ class MILmodel(nn.Module):
                     y_pred = M.view(M.shape[0],-1) #Nx2
                     #print("y pred:", y_pred)
                 else:
-                    y_pred = self.milpooling_block.ISMean(None, h_all, views_names)
+                    y_pred, instance_pred = self.milpooling_block.ISMean(None, h_all, views_names)
             
             elif self.milpooling=='esatt' or self.milpooling=='esgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
@@ -1020,15 +1031,15 @@ class MILmodel(nn.Module):
             
             elif self.milpooling=='isatt' or self.milpooling=='isgatt':
                 if self.featureextractormodel == 'gmic_resnet18':
-                    y_local, att_local = self.milpooling_block.ISAtt_breastwise('local', h, views_names)
-                    y_global, att_global = self.milpooling_block.ISAtt_breastwise('global', h, views_names)
+                    y_local, att_local, instance_pred = self.milpooling_block.ISAtt_breastwise('local', h, views_names)
+                    y_global, att_global, instance_pred = self.milpooling_block.ISAtt_breastwise('global', h, views_names)
                     #y_global = self.milpooling_block.ISMean('global', h_all[1], views_names)
-                    y_fusion, att_fusion = self.milpooling_block.ISAtt_breastwise('fusion', h, views_names)
+                    y_fusion, att_fusion, instance_pred = self.milpooling_block.ISAtt_breastwise('fusion', h, views_names)
                     #all_saliency_map = self.capture_saliency_map(h, views_names)
                     #print(y_local, y_global, y_fusion)
                     
                 else:
-                    y_pred = self.milpooling_block.ISAtt_breastwise(None, h, views_names)
+                    y_pred, instance_pred = self.milpooling_block.ISAtt_breastwise(None, h, views_names)
         
         '''print(h_all[6].shape)
         print("att fusion:", att_fusion)
@@ -1048,7 +1059,7 @@ class MILmodel(nn.Module):
             print("att_fusion:", att_fusion, flush=True) 
             print("patch attention:", h_all[6], flush=True)
             '''
-            return y_local, y_global, y_fusion, h_all[3], h_all[4], h_all[5], h_all[6], att_fusion, y_patch
+            return y_local, y_global, y_fusion, h_all[3], h_all[4], h_all[5], h_all[6], att_fusion, y_patch, instance_pred
         else:
             return y_pred
 
