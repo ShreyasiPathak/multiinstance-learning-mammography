@@ -9,25 +9,26 @@ from sklearn.metrics import confusion_matrix
 #from train_eval import test, evaluation
 
 def imglabel_f1_plot(meanF1, stddev, filename):
-    fig, ax = plt.subplots(figsize=(18,20))
+    fig, ax = plt.subplots(figsize=(20,20))
     
-    x = np.arange(8)
+    x = np.arange(9)
     width = 0.25  # the width of the bars
     multiplier = 0
     
-    labels = ['SIL-IL', 'IS-Mean$^{img}$', 'IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'IS-Att$^{side}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
+    labels = ['SIL-IL', 'SIL-CL', 'IS-Mean$^{img}$', 'IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'IS-Att$^{side}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
     
     #meanF1 = [0.70, 0.62, 0.52, 0.64, 0.73, 0.70, 0.76, 0.50, 0.81, 0.76, 0.74, 0.81]
     #stddev = [0.03, 0.01, 0.0, 0.02, 0.01, 0.01, 0.02, 0.02, 0.02, 0.0, 0.01, 0.04]
 
-    meanF1_sil = (0.70)
-    std_sil = (0.03)
+    meanF1_sil = (0.70, 0.61)
+    std_sil = (0.03, 0.02)
+    x_sil = np.arange(2)
     #label_es = ['AttWt', 'AttWt', 'AttWt']
-    rects = ax.bar([0+width], meanF1_sil, width, yerr = std_sil, color = 'dodgerblue', capsize = 2)
+    rects = ax.bar(x_sil + width, meanF1_sil, width, yerr = std_sil, color = 'dodgerblue', capsize = 2)
     ax.bar_label(rects, padding=3, fontsize=15)
 
-    meanF1_is = {'InstanceProb': [(0.62, 0.64, 0.70, 0.50), (0.01, 0.02, 0.01, 0.02)], 'AttWt': [(0.52, 0.73, 0.76, 0.81), (0.0, 0.01, 0.02, 0.02)]}
-    x_is = np.arange(1,5)
+    meanF1_is = {'Image Probability': [(0.62, 0.64, 0.70, 0.50), (0.01, 0.02, 0.01, 0.02)], 'Attention Weight': [(0.52, 0.73, 0.76, 0.81), (0.0, 0.01, 0.02, 0.02)]}
+    x_is = np.arange(2,6)
     colour_select = ['dodgerblue', 'orange']
     for attribute, measurement in meanF1_is.items():
         offset = width * multiplier
@@ -37,12 +38,12 @@ def imglabel_f1_plot(meanF1, stddev, filename):
     
     meanF1_es = (0.76, 0.74, 0.81)
     std_es = (0.0, 0.01, 0.04)
-    x_es = np.arange(5,8)
+    x_es = np.arange(6,9)
     rects = ax.bar(x_es+width, meanF1_es, width, yerr = std_es, color ='orange', capsize = 2)
     ax.bar_label(rects, padding=3, fontsize=15)
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
-    ax.set_ylabel('F1$^{\mu}$ score', fontsize=25)
+    ax.set_ylabel('F1$^{\mu}$ score at the image-level', fontsize=25)
     ax.set_xlabel('Model variants', fontsize=25)
     #ax.set_title('Penguin attributes by species')
     ax.tick_params(axis='y', which='major', labelsize=25)
