@@ -349,7 +349,7 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
                     elif config_params['dataset'] == 'zgt':
                         exam_name = df_test.loc[test_idx.item(), 'ShortPath'].split('/')[-1]
                     loaded_image, _, _, img_path_list = data_loaders_utils.collect_cases(config_params, df_test.loc[test_idx.item()])
-                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
+                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _, _ = model(test_batch, views_names, eval_mode)
                     patch_locations = patch_locations.cpu()
                     patch_imgs = patch_imgs.cpu()
             
@@ -390,7 +390,7 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
             #input('halt')
                 
     df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
-    df_img_iou.to_csv(os.path.join(config_params['path_to_output'], "iou_score_test_set.csv"), sep=';',na_rep='NULL',index=False)
+    df_img_iou.to_csv(os.path.join(config_params['path_to_output'], "iou_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
     '''iou_avg_any_roi = iou_sum_any_roi/df_img_iou.shape[0]
     iou_avg_all_roi = iou_sum_all_roi/df_img_iou.shape[0]
     iou_avg_any_roi_hattnwt = iou_sum_any_roi_hattnwt/df_img_iou.shape[0]
@@ -399,7 +399,7 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
     print("iou avg any roi hattnwt:", iou_avg_any_roi_hattnwt)'''
 
     df_img_dsc = pd.DataFrame.from_dict(df_dsc, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
-    df_img_dsc.to_csv(os.path.join(config_params['path_to_output'], "dsc_score_test_set.csv"), sep=';',na_rep='NULL',index=False)
+    df_img_dsc.to_csv(os.path.join(config_params['path_to_output'], "dsc_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
     '''dsc_avg_any_roi = dsc_sum_any_roi/df_img_dsc.shape[0]
     dsc_avg_all_roi = dsc_sum_all_roi/df_img_dsc.shape[0]
     dsc_avg_any_roi_hattnwt = dsc_sum_any_roi_hattnwt/df_img_dsc.shape[0]
@@ -456,7 +456,7 @@ def output_visualize(config_params, model, dataloader_test, df_test):
                     elif config_params['dataset'] == 'zgt':
                         exam_name = df_test.loc[test_idx.item(), 'StudyInstanceUID']
                     loaded_image, _, _, _ = data_loaders_utils.collect_cases(config_params, df_test.loc[test_idx.item()])
-                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _ = model(test_batch, views_names, eval_mode)
+                    _, _, output_batch_fusion, saliency_map, patch_locations, patch_imgs, patch_attns, img_attns, _, _ = model(test_batch, views_names, eval_mode)
                     patch_locations = patch_locations.cpu()
                     patch_imgs = patch_imgs.cpu()
 
