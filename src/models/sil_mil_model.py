@@ -544,6 +544,7 @@ class MILpooling(nn.Module):
             else:
                 h_left = torch.zeros(size=(0,1),device=self.device)
                 A_left = None
+                y_pred_left = None
             
             if len(views_names_right)>1:
                 for counter1, view in enumerate(views_names_right):
@@ -573,6 +574,7 @@ class MILpooling(nn.Module):
             else:
                 h_right = torch.zeros(size=(0,1),device=self.device)
                 A_right = None
+                y_pred_right = None
 
         else:
             if featuretype == 'local':
@@ -620,6 +622,7 @@ class MILpooling(nn.Module):
             else:
                 h_left = torch.zeros(size=(0,1),device=self.device)
                 A_left = None
+                y_pred_left = None
             
             if len(views_names_right)>1:
                 for counter1, view in enumerate(views_names_right):
@@ -659,6 +662,7 @@ class MILpooling(nn.Module):
             else:
                 h_right = torch.zeros(size=(0,1),device=self.device)
                 A_right = None
+                y_pred_right = None
             
         if len(h_left) and len(h_right):
             h_both = torch.cat((h_left, h_right),dim=1) #shape=Nx2xL
