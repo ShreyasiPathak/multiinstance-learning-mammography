@@ -138,8 +138,8 @@ def seg_evaluation(config_params, input_img_case, img_path_list, patch_locations
         not_allow = False
     
     elif config_params['dataset'] == 'zgt':
-        zgt_roi_annotation = '/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
-        #zgt_roi_annotation = '/homes/spathak/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
+        #zgt_roi_annotation = '/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
+        zgt_roi_annotation = '/homes/spathak/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
         df_roi_zgt = pd.read_csv(zgt_roi_annotation, sep=';')
         #print("exam name:", exam_name)
         #print(df_roi_zgt[df_roi_zgt['image'].str.split('/').str[-1]==exam_name])
@@ -165,7 +165,7 @@ def seg_evaluation(config_params, input_img_case, img_path_list, patch_locations
             if config_params['learningtype'] == 'MIL':
                 if config_params['dataset'] == 'cbis-ddsm':
                     image_name = exam_name + '_' + view_name_for_cbis[view_name]
-                    print("image_name:", image_name)
+                    print("image_name from the for loop of view names:", image_name)
                     accnum = 'NULL'
                     case_name = exam_name 
                     print("case name:", case_name)
@@ -173,7 +173,10 @@ def seg_evaluation(config_params, input_img_case, img_path_list, patch_locations
                     series_name = 'NULL'
                     print(img_path_list[view_id])
                     print("series name:", series_name)
-                    img_name = img_path_list[view_id].split('/')[-1]  
+                    img_name = img_path_list[view_id].split('/')[-1].split('_1-1.png')[0]
+                    print("image name from the case:", img_name) 
+                    assert image_name == img_name
+                
                 elif config_params['dataset'] == 'vindr':
                     print("img path list:", img_path_list[view_id])
                     image_name = img_path_list[view_id].split('/')[-1].split('.')[0].split('_')[1]
@@ -246,7 +249,7 @@ def seg_evaluation(config_params, input_img_case, img_path_list, patch_locations
             elif config_params['dataset'] == 'vindr':
                 iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images_vindr(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax)
             elif config_params['dataset'] == 'zgt':
-                iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images_zgt(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax)
+                iou_view_each_roi, _, iou_highestattnwt_each_roi, fig, ax = mask_roi_match.match_to_mask_images_zgt(config_params, input_img, image_name, patch_attentions, patch_locations, seg_eval_metric, view_id, views_names, fig, ax, img_attention)
             if iou_view_each_roi!=[]:
                 #iou_any_roi_max.append(max(iou_view_each_roi)) # max IOU for any of the ROIs
                 #iou_all_roi_mean = iou_all_roi_mean + iou_view_each_roi #average for all ROIs in one view 
@@ -360,6 +363,7 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
                 img_attns = imagelabel_attwt_match.extract_img_attn_wts(config_params, img_attns)
             except:
                 pass
+            print("img attns:", img_attns)
             patch_attentions = patch_attns[0, :, :].data.cpu().numpy()
         
             #for calculating the intersection over union and dice similarity score of ROI candidates with the groundtruth ROI.
@@ -388,9 +392,29 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
             #print("dsc exam all roi:", dsc_all_roi_mean)'''
             print(test_labels, test_pred)
             #input('halt')
-                
-    df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
-    df_img_iou.to_csv(os.path.join(config_params['path_to_output'], "iou_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
+    
+    df_iou_dsc = dict()
+    for key in df_iou.keys():
+        df_iou_dsc[key] = df_iou[key] + df_dsc[key][4:8]
+
+    #df_img_iou = pd.DataFrame.from_dict(df_iou, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
+    df_img_iou_dsc = pd.DataFrame.from_dict(df_iou_dsc, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt', 'dsc_any_roi', 'dsc_any_roi_max', 'dsc_all_roi_mean', 'dsc_any_roi_max_highestattnwt'])
+    mean_index = len(df_img_iou_dsc.index)
+    mean_1 = round(df_img_iou_dsc['iou_any_roi_max'].mean(), 2)
+    mean_2 = round(df_img_iou_dsc['iou_all_roi_mean'].mean(), 2)
+    mean_3 = round(df_img_iou_dsc['iou_any_roi_max_highestattnwt'].mean(), 2)
+    mean_4 = round(df_img_iou_dsc['dsc_any_roi_max'].mean(), 2)
+    mean_5 = round(df_img_iou_dsc['dsc_all_roi_mean'].mean(), 2)
+    mean_6 = round(df_img_iou_dsc['dsc_any_roi_max_highestattnwt'].mean(), 2)
+
+    df_img_iou_dsc.loc[mean_index, 'iou_any_roi_max'] = mean_1
+    df_img_iou_dsc.loc[mean_index, 'iou_all_roi_mean'] = mean_2
+    df_img_iou_dsc.loc[mean_index, 'iou_any_roi_max_highestattnwt'] = mean_3
+    df_img_iou_dsc.loc[mean_index, 'dsc_any_roi_max'] = mean_4
+    df_img_iou_dsc.loc[mean_index, 'dsc_all_roi_mean'] = mean_5
+    df_img_iou_dsc.loc[mean_index, 'dsc_any_roi_max_highestattnwt'] = mean_6
+
+    df_img_iou_dsc.to_csv(os.path.join(config_params['path_to_output'], "iou_dsc_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
     '''iou_avg_any_roi = iou_sum_any_roi/df_img_iou.shape[0]
     iou_avg_all_roi = iou_sum_all_roi/df_img_iou.shape[0]
     iou_avg_any_roi_hattnwt = iou_sum_any_roi_hattnwt/df_img_iou.shape[0]
@@ -398,8 +422,8 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
     print("iou avg all roi:", iou_avg_all_roi)
     print("iou avg any roi hattnwt:", iou_avg_any_roi_hattnwt)'''
 
-    df_img_dsc = pd.DataFrame.from_dict(df_dsc, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
-    df_img_dsc.to_csv(os.path.join(config_params['path_to_output'], "dsc_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
+    #df_img_dsc = pd.DataFrame.from_dict(df_dsc, orient='index', columns=['AccessionNum', 'CaseName', 'SeriesName', 'ImageName', 'iou_any_roi', 'iou_any_roi_max', 'iou_all_roi_mean', 'iou_any_roi_max_highestattnwt'])
+    #df_img_dsc.to_csv(os.path.join(config_params['path_to_output'], "dsc_score_test_set_"+str(config_params['randseedother']) +'_'+ str(config_params['randseeddata'])+".csv"), sep=';',na_rep='NULL',index=False)
     '''dsc_avg_any_roi = dsc_sum_any_roi/df_img_dsc.shape[0]
     dsc_avg_all_roi = dsc_sum_all_roi/df_img_dsc.shape[0]
     dsc_avg_any_roi_hattnwt = dsc_sum_any_roi_hattnwt/df_img_dsc.shape[0]
@@ -407,8 +431,6 @@ def modelpatch_roi_match(config_params, model, dataloader_test, df_test):
     print("dsc avg all roi:", dsc_avg_all_roi)
     print("dsc avg any roi hattnwt:", dsc_avg_any_roi_hattnwt)'''
     
-
-
 def output_visualize(config_params, model, dataloader_test, df_test):
     model.eval()
     eval_mode = True
