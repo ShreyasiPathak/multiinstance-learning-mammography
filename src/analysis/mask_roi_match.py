@@ -37,10 +37,10 @@ def mask_paths(config_params):
         image_size_path = '/groups/dso/spathak/vindr/vindr_singleinstance_imgpreprocessing_size.csv'
     
     elif config_params['dataset'] == 'zgt':
-        mask_path = '/deepstore/datasets/dmb/medical/breastcancer/mammography/zgt/annotate_mammo_roi_zgt_fromtestset/'
-        image_size_path = '/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
-        #mask_path = '/groups/dso/spathak/annotate_mammo_roi_zgt_fromtestset/'
-        #image_size_path = '/homes/spathak/multiview_mammogram/input_data/extracted_annotations_withrle.csv'
+        #mask_path = '/deepstore/datasets/dmb/medical/breastcancer/mammography/zgt/annotate_mammo_roi_zgt_fromtestset/'
+        #image_size_path = '/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/extracted_annotations_withrle_corrected.csv'
+        mask_path = '/groups/dso/spathak/annotate_mammo_roi_zgt_fromtestset/'
+        image_size_path = '/homes/spathak/multiview_mammogram/input_data/extracted_annotations_withrle.csv'
 
     return mask_path, image_size_path
 
@@ -318,7 +318,7 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
     print("score:", iou_max_over_each_roi)
     return iou_max_over_each_roi, iou_all_over_each_roi, iou_highestattnwt_max_over_each_roi, fig, ax
 
-def match_to_mask_images_zgt(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax):
+def match_to_mask_images_zgt(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax, img_attention):
     """
     Function to calculate how much does the patch extracted by the model match to the true ROI 
     """
@@ -329,8 +329,8 @@ def match_to_mask_images_zgt(config_params, original_image, exam_name, model_pat
 
     #which ROI folders belong to this exam
     roi_folder_split = image_folder_name.split('/')
-    roi_folder = mask_path + '/'.join(roi_folder_split[8:-1])
-    #roi_folder = mask_path + '/'.join(roi_folder_split[5:-1])
+    #roi_folder = mask_path + '/'.join(roi_folder_split[8:-1]) #ut
+    roi_folder = mask_path + '/'.join(roi_folder_split[5:-1]) #ikim
     #print(roi_folder)
     roi_binarymasks = [filename for filename in os.listdir(roi_folder) if '_binarymask' in filename]
     #print("roi folder name:", roi_binarymasks)
@@ -340,7 +340,8 @@ def match_to_mask_images_zgt(config_params, original_image, exam_name, model_pat
     #print(df_img_size['image'].str.split('=').str[-1].value)
     #print('/'.join(roi_folder_split[5:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')
     #print('/'.join(roi_folder_split[8:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')
-    df_img_size = df_img_size['/'+df_img_size['image'].str.split('=').str[-1]==('/'.join(roi_folder_split[8:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')]
+    #df_img_size = df_img_size['/'+df_img_size['image'].str.split('=').str[-1]==('/'.join(roi_folder_split[8:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')] #ut
+    df_img_size = df_img_size[df_img_size['image'].str.split('=').str[-1]==('/'.join(roi_folder_split[5:-1])+'/'+roi_folder_split[-1].split('.npy')[0]+'.png')] #ikim
     #print("df_img_size:", df_img_size)
     assert df_img_size.empty==False
     #select the location of the highest attention patch
@@ -351,6 +352,10 @@ def match_to_mask_images_zgt(config_params, original_image, exam_name, model_pat
     iou_max_over_each_roi = []
     iou_highestattnwt_max_over_each_roi = []
     true_mask_loc_all = [] 
+
+    #print(model_patch_attentions)
+    #print(img_attention)
+    #print(np.multiply(model_patch_attentions, img_attention))
 
     if roi_binarymasks!=[]:
         for roi_binarymask in roi_binarymasks:
