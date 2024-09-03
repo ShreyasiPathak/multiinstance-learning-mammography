@@ -5,11 +5,11 @@ import openpyxl as op
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-#from utilities import data_loaders_utils
-#from train_eval import test, evaluation
+from utilities import data_loaders_utils
+from train_eval import test, evaluation
 
-def imglabel_f1_plot(meanF1, stddev, filename):
-    fig, ax = plt.subplots(figsize=(20,20))
+def imglabel_f1_plot(filename):
+    fig, ax = plt.subplots(figsize=(20,15))
     
     x = np.arange(9)
     width = 0.25  # the width of the bars
@@ -274,9 +274,9 @@ def run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_t
     model1 = test.load_model_for_testing(model, path_to_trained_model)
     model_output(config_params, model1, dataloader_test, df_test, path_to_results)
 
-filename = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/f1_attmodel_gt_imglabel.pdf'
+#filename = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/f1_attmodel_gt_imglabel.pdf'
 #meanF1 = [0.52, 0.75, 0.75, 0.75, 0.72, 0.82]
 #stddev = [0, 0.03, 0.02, 0.01, 0, 0.04]
-meanF1 = [0.70, 0.62, 0.52, 0.64, 0.73, 0.70, 0.76, 0.50, 0.81, 0.76, 0.74, 0.81]
-stddev = [0.03, 0.01, 0.0, 0.02, 0.01, 0.01, 0.02, 0.02, 0.02, 0.0, 0.01, 0.04]
-imglabel_f1_plot(meanF1, stddev, filename)
+#meanF1 = [0.70, 0.62, 0.52, 0.64, 0.73, 0.70, 0.76, 0.50, 0.81, 0.76, 0.74, 0.81]
+#stddev = [0.03, 0.01, 0.0, 0.02, 0.01, 0.01, 0.02, 0.02, 0.02, 0.0, 0.01, 0.04]
+#imglabel_f1_plot(filename)
