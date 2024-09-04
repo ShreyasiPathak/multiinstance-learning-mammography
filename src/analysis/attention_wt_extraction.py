@@ -84,15 +84,17 @@ def attention_weights(config_params, model, dataloader_test, batches_test, df_te
             '''
             if config_params['femodel'] == 'gmic_resnet18':
                 if config_params['learningtype'] == 'SIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch) # compute model output, loss and total train loss over one epoch
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch, eval_mode=True) # compute model output, loss and total train loss over one epoch
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map = model(test_batch, views_names)
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, _, output_patch = model(test_batch, views_names, eval_mode=True)
+                
                 output_batch_local = output_batch_local.view(-1)
                 output_batch_global = output_batch_global.view(-1)
                 output_batch_fusion = output_batch_fusion.view(-1)
                 test_labels = test_labels.float()
                 test_pred = torch.ge(torch.sigmoid(output_batch_fusion), torch.tensor(0.5)).float()
-                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, None, test_bool=True).item()
+                loss1 = loss_function.loss_fn_gmic(config_params, bcelogitloss, bceloss, output_batch_local, output_batch_global, output_batch_fusion, saliency_map, test_labels, None,  output_patch, test_bool=True).item()
+                
                 output_test = output_batch_fusion
             
             else:
