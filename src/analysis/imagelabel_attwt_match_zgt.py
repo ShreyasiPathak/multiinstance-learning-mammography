@@ -17,7 +17,7 @@ def imglabel_f1_plot(filename):
     width = 0.25  # the width of the bars
     multiplier = 0
     
-    labels = ['SIL-IL', 'IS-Mean$^{img}$', 'IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'IS-Att$^{side}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
+    labels = ['SIL-CL', 'IS-Mean$^{img}$', 'IS-Att$^{img}$', 'IS-GAtt$^{img}$', 'IS-Att$^{side}$', 'ES-Att$^{img}$', 'ES-GAtt$^{img}$', 'ES-Att$^{side}$']
     
     #meanF1 = [0.70, 0.62, 0.52, 0.64, 0.73, 0.70, 0.76, 0.50, 0.81, 0.76, 0.74, 0.81]
     #stddev = [0.03, 0.01, 0.0, 0.02, 0.01, 0.01, 0.02, 0.02, 0.02, 0.0, 0.01, 0.04]
@@ -29,7 +29,7 @@ def imglabel_f1_plot(filename):
     rects = ax.bar(x_sil + width, meanF1_sil, width, color = 'dodgerblue', capsize = 2)
     ax.bar_label(rects, padding=3, fontsize=15)
 
-    meanF1_is = {'Image Probability': (0.66, 0.78, 0.77, 0.72), 'Attention Weight': (0.43, 0.69, 0.66, 0.76)}
+    meanF1_is = {'Image Probability': (0.66, 0.78, 0.77, 0.72), 'Attention Score': (0.43, 0.69, 0.66, 0.76)}
     x_is = np.arange(1,5)
     colour_select = ['dodgerblue', 'orange']
     for attribute, measurement in meanF1_is.items():
@@ -334,7 +334,7 @@ def run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_t
     model1 = test.load_model_for_testing(model, path_to_trained_model)
     model_output(config_params, model1, dataloader_test, df_test, path_to_results)
 
-#filename = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/f1_attmodel_gt_imglabel_zgt.pdf'
+#filename = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/f1_attmodel_gt_imglabel_zgt1.pdf'
 #meanF1 = [0.52, 0.75, 0.75, 0.75, 0.72, 0.82]
 #stddev = [0, 0.03, 0.02, 0.01, 0, 0.04]
 #meanF1 = [0.70, 0.62, 0.52, 0.64, 0.73, 0.70, 0.76, 0.50, 0.81, 0.76, 0.74, 0.81]
