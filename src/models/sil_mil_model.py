@@ -384,8 +384,9 @@ class MILpooling(nn.Module):
         #print(featuretype)
         #print(h_all.shape)
         M = self.classifier_score(featuretype, h_all)
-        if featuretype == 'local' or featuretype == 'fusion' or featuretype is None:
-            M = self.sigmoid_activation(M) #new addition
+        if self.featureextractormodel!='kim':
+            if featuretype == 'local' or featuretype == 'fusion' or featuretype is None:
+                M = self.sigmoid_activation(M) #new addition
         y_pred = M
         #print("1:",M.shape)
         M = self.MILPooling_ISMean(M, views_names, self.activation) #shape=Nx2 or Nx1
