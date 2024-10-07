@@ -318,6 +318,122 @@ def match_to_mask_images_vindr(config_params, original_image, exam_name, model_p
     print("score:", iou_max_over_each_roi)
     return iou_max_over_each_roi, iou_all_over_each_roi, iou_highestattnwt_max_over_each_roi, fig, ax
 
+def roi_diagnosis_images_vindr(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax, case_pred_label, case_true_label, roi_diagnosis_conf_mat_percase):
+    #filepath_roiloc, filepath_newimagesize = mask_paths(config_params)
+    #create_mask_file(filepath_roiloc, filepath_newimagesize) #20485
+    #input('halt')
+
+    #which ROI folders belong to this exam
+    print("image_name:", exam_name)
+    df_roi = pd.read_csv('/deepstore/datasets/dmb/medical/breastcancer/mammography/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
+    #print(df_roi[df_roi['split']=='test']['study_id'].unique().shape)
+    #input('halt')
+    #df_roi = pd.read_csv('/groups/dso/spathak/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
+    roi_folder_df = df_roi[df_roi['ImageName']==exam_name]#.split('.')[0].split('_')[1]]
+    print("roi folder name:", roi_folder_df)
+    
+    iou_all_over_each_roi = []
+    iou_max_over_each_roi = []
+    iou_highestattnwt_max_over_each_roi = []
+    true_mask_loc_all = [] 
+
+    if not roi_folder_df.empty:
+        for idx in roi_folder_df.index:
+            try:
+                roi_row = roi_folder_df.loc[idx]
+                #print(roi_row)
+                true_mask_image = np.zeros((roi_row['ori_height'], roi_row['ori_width']), dtype=np.uint8)
+                roi_ymin = math.ceil(roi_row['ymin'])
+                roi_ymax = math.ceil(roi_row['ymax'])
+                roi_xmin = math.ceil(roi_row['xmin'])
+                roi_xmax = math.ceil(roi_row['xmax'])
+                
+                if (roi_ymin<0) or (roi_ymax<0) or (roi_xmin<0) or (roi_xmax<0):
+                    continue
+
+                if roi_ymin<roi_row['pro_min_y'].item():
+                    roi_ymin = roi_row['pro_min_y'].item()
+                if roi_ymax>roi_row['pro_max_y'].item():
+                    roi_ymax = roi_row['pro_max_y'].item()
+                if roi_xmin<roi_row['pro_min_x'].item():
+                    roi_xmin = roi_row['pro_min_x'].item()
+                if roi_xmax>roi_row['pro_max_x'].item():
+                    roi_xmax = roi_row['pro_max_x'].item()
+                
+                mask_white = np.ones((roi_ymax - roi_ymin, roi_xmax - roi_xmin))
+                print("mask coordinate:", roi_ymin, roi_ymax, roi_xmin, roi_xmax, flush=True)
+                print("processed image coordinate:", roi_row['pro_min_y'].item(), roi_row['pro_max_y'].item(), roi_row['pro_min_x'].item(), roi_row['pro_max_x'].item(), flush=True)
+                print("true mask image:", true_mask_image.shape, flush=True)
+                
+                true_mask_image[roi_ymin:roi_ymax, roi_xmin:roi_xmax] = mask_white
+                #plt.imsave('./mask.png', true_mask_image, cmap='gray')
+                true_mask_image = true_mask_image * 255
+                true_mask_image = true_mask_image[roi_row['pro_min_y'].item():roi_row['pro_max_y'].item(), roi_row['pro_min_x'].item():roi_row['pro_max_x'].item()]
+                true_mask_image = data_augmentation_utils.myhorizontalflip(true_mask_image, roi_row['laterality'])
+                #plt.imsave('./mask_hf.png', true_mask_image, cmap='gray')
+                true_mask_image = cv2.resize(true_mask_image, dsize=(config_params['resize'][1], config_params['resize'][0]))
+                #plt.imsave('./mask_rs.png', true_mask_image, cmap='gray')
+                #print(true_mask_image.shape)
+                #print(true_mask_image.dtype)
+                x,y,w,h = cv2.boundingRect(true_mask_image) 
+                true_mask_loc = [x,y,x+w,y+h]
+                true_mask_loc_all.append(true_mask_loc)
+
+                if (exam_name == '0f714f0b91dcd0ff05a60290440d1004') or (exam_name == '1cbc0ae5d67abccd58a4ba6d657d921e') or (exam_name=='67eba147095e0fb7cc0fb928c08a6fa0') or (exam_name=='6b6b65d46cf68b3673b9a59c4cce9fc8') or (exam_name=='a404014023088ae711fd4445d8b298b4') or (exam_name=='d91825b15e444b4cab3a50b8927a7b6a'):
+                    print("true_mask_loc:", true_mask_loc, flush=True)
+                    print("model patch location:", model_patch_locations, flush=True)
+
+                iou_over_all_patches = []
+                pred_mask_loc_all = []
+                for idx in range(model_patch_locations.shape[1]):
+                    patch_location = model_patch_locations[0, idx, :]
+                    #extract min_x, min_y, max_x, max_y position from the upper left patch location (extracted by the model)
+                    pred_mask_loc = extract_patch_position_wrt_image(original_image, config_params['crop_shape'], patch_location, 'upper_left')
+                    if seg_eval_metric=='IOU':
+                        iou_over_all_patches.append(intersection_over_union(true_mask_loc, pred_mask_loc))
+                    elif seg_eval_metric=='DSC':
+                        iou_over_all_patches.append(dice_similarity_score(true_mask_loc, pred_mask_loc))
+                    pred_mask_loc_all.append(pred_mask_loc)
+            
+                if max(iou_over_all_patches)>0:
+                    print("case true label", case_true_label, case_pred_label)
+                    if case_true_label == 0:
+                        if (roi_row['finding_birads'] == 'BI-RADS 1' or roi_row['finding_birads'] == 'BI-RADS 2' or roi_row['finding_birads'] == 'BI-RADS 3') and case_pred_label==0: 
+                            roi_diagnosis_conf_mat_percase[0,0]+=1
+                        elif (roi_row['finding_birads'] == 'BI-RADS 1' or roi_row['finding_birads'] == 'BI-RADS 2' or roi_row['finding_birads'] == 'BI-RADS 3') and case_pred_label==1: 
+                            roi_diagnosis_conf_mat_percase[0,1]+=1
+                    elif case_true_label == 1:
+                        if (roi_row['finding_birads'] == 'BI-RADS 4' or roi_row['finding_birads'] == 'BI-RADS 5') and case_pred_label==0:
+                            roi_diagnosis_conf_mat_percase[1,0]+=1 
+                        elif (roi_row['finding_birads'] == 'BI-RADS 4' or roi_row['finding_birads'] == 'BI-RADS 5') and case_pred_label==1:
+                            roi_diagnosis_conf_mat_percase[1,1]+=1     
+                
+                '''elif max(iou_over_all_patches)==0.0:
+                    if case_true_label == 0 and case_pred_label==0:
+                        roi_diagnosis_conf_mat_percase[0,2]+=1  
+                    elif case_true_label == 0 and case_pred_label==1:
+                        roi_diagnosis_conf_mat_percase[0,3]+=1   
+                    elif case_true_label == 1 and case_pred_label==0:
+                        roi_diagnosis_conf_mat_percase[1,2]+=1  
+                    elif case_true_label == 1 and case_pred_label==1:
+                        roi_diagnosis_conf_mat_percase[1,3]+=1   
+                '''
+                #max iou over all patches for each roi; [R] where R is number of patches
+                iou_max_over_each_roi.append(max(iou_over_all_patches))
+                
+                #highest attention weighted patch
+                iou_highestattnwt_max_over_each_roi.append(iou_over_all_patches[np.argmax(model_patch_attentions)])
+
+                #append iou over all patches for each roi
+                iou_all_over_each_roi.append(iou_over_all_patches)
+            except Exception as e:
+                print(e, flush=True)
+                pass
+    
+        #fig, ax = bounding_box_true_pred(original_image, true_mask_loc_all, pred_mask_loc_all, view_id, views_names, fig, ax)
+    print("score:", iou_max_over_each_roi)
+    return iou_max_over_each_roi, iou_all_over_each_roi, iou_highestattnwt_max_over_each_roi, fig, ax, roi_diagnosis_conf_mat_percase
+
 def match_to_mask_images_zgt(config_params, original_image, exam_name, model_patch_attentions, model_patch_locations, seg_eval_metric, view_id, views_names, fig, ax, img_attention):
     """
     Function to calculate how much does the patch extracted by the model match to the true ROI 
