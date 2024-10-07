@@ -342,7 +342,7 @@ def confusion_matrix_norm_func(conf_mat,fig_name,class_name):
     #print(conf_mat_norm)
     print_confusion_matrix(conf_mat_norm,class_name,fig_name)
     
-def print_confusion_matrix(conf_mat_norm, class_names, fig_name, figsize = (2,2), fontsize=5):
+def print_confusion_matrix(conf_mat_norm, class_names_y, class_names_x, fig_name, figsize = (2,2), fontsize=5):
     """Prints a confusion matrix, as returned by sklearn.metrics.confusion_matrix, as a heatmap.
     
     Arguments
@@ -369,8 +369,8 @@ def print_confusion_matrix(conf_mat_norm, class_names, fig_name, figsize = (2,2)
     #cbar_ax = fig.add_axes([.93, 0.1, 0.05, 0.77])
     #fig = plt.figure(figsize=figsize)
     heatmap=sns.heatmap(
-        yticklabels=class_names,
-        xticklabels=class_names,
+        yticklabels=class_names_y,
+        xticklabels=class_names_x,
         data=conf_mat_norm,
         ax=ax,
         cmap='YlGnBu',
@@ -378,20 +378,20 @@ def print_confusion_matrix(conf_mat_norm, class_names, fig_name, figsize = (2,2)
         #cbar_ax=cbar_ax,
         annot=True,
         annot_kws={'size':fontsize},
-        fmt=".2f",
+        fmt="d",
         square=True
         #linewidths=0.75
         )
     heatmap.yaxis.set_ticklabels(heatmap.yaxis.get_ticklabels(), rotation=0, ha='right', fontsize=fontsize)
-    heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=45, ha='right', fontsize=fontsize)
-    ax.set_ylabel('True label',labelpad=0,fontsize=fontsize)
-    ax.set_xlabel('Predicted label',labelpad=0,fontsize=fontsize)
+    heatmap.xaxis.set_ticklabels(heatmap.xaxis.get_ticklabels(), rotation=0, ha='center', fontsize=fontsize)
+    ax.set_ylabel('True',labelpad=0,fontsize=fontsize)
+    ax.set_xlabel('Predicted',labelpad=3,fontsize=fontsize)
     #cbar_ax.tick_params(labelsize=fontsize) 
     #ax.get_yaxis().set_visible(False)
     #plt.tight_layout()
     #plt.show()
-    ax.set_title(fig_name)
-    fig.savefig(fig_name+'.pdf', format='pdf', bbox_inches='tight')    
+    #ax.set_title(fig_name)
+    fig.savefig(fig_name, format='pdf', bbox_inches='tight')    
 
 def crosscheck_view_collect_images(config_params, df):
     views_allowed = data_loaders_utils.views_allowed_dataset(config_params)
@@ -421,3 +421,10 @@ def crosscheck_view_collect_images(config_params, df):
             print(idx)
             input('halt')
         i+=1
+
+#fig_name = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/roi-diagnosis-esattside-confmat-vindr1.pdf'
+#conf_mat = [[ 93 , 56, 20, 1], [ 53, 175, 9, 16]]
+#conf_mat = [[ 79 , 67, 20, 3], [ 54, 178, 8, 15]] #silil
+#conf_mat = [[ 54 , 30, 6, 1], [ 30, 63, 2, 1]] # esattside
+#conf_mat = [[ 0 , 70, 0, 21], [ 0, 85, 0, 11]] # ismeanatt
+#print_confusion_matrix(conf_mat, ['B-Case', 'M-Case'], ['B-Case + \nROI', 'M-Case +\nROI', 'B-Case + \n R\u0336O\u0336I\u0336', 'M-Case +\nNo-ROI'], fig_name, figsize = (5,5), fontsize=10)
