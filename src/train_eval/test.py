@@ -71,7 +71,7 @@ def test(config_params, model, dataloader_test, batches_test, df_test, path_to_r
                     output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _ = model(test_batch, eval_mode) # compute model output, loss and total train loss over one epoch
                     output_patch_test = None
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, output_patch_test = model(test_batch, views_names, eval_mode)
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, output_patch_test, _ = model(test_batch, views_names, eval_mode)
                 
                 if config_params['activation'] == 'sigmoid':
                     output_batch_local = output_batch_local.view(-1)

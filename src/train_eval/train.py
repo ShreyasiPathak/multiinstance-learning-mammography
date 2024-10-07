@@ -216,7 +216,7 @@ def train(config_params, model, path_to_model, data_iterator_train, data_iterato
                     output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _ = model(train_batch, eval_mode) # compute model output, loss and total train loss over one epoch
                     output_patch = None
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, output_patch = model(train_batch, views_names, eval_mode)
+                    output_batch_local, output_batch_global, output_batch_fusion, saliency_map, _, _, _, _, output_patch, _ = model(train_batch, views_names, eval_mode)
                 
                 #print("local shape:", output_batch_local.shape)
                 #print("global shape:", output_batch_global.shape)
@@ -441,7 +441,7 @@ def validation(config_params, model, data_iterator_val, batches_val, df_val, epo
                     output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, _, _, _, _ = model(val_batch, eval_mode) # compute model output, loss and total train loss over one epoch
                     output_patch_val = None
                 elif config_params['learningtype'] == 'MIL':
-                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, _, _, _, _, output_patch_val = model(val_batch, views_names, eval_mode)
+                    output_batch_local_val, output_batch_global_val, output_batch_fusion_val, saliency_map_val, _, _, _, _, output_patch_val, _ = model(val_batch, views_names, eval_mode)
                 
                 if config_params['activation'] == 'sigmoid':
                     output_batch_local_val = output_batch_local_val.view(-1)
@@ -629,7 +629,7 @@ if __name__=='__main__':
         
         #test the model
         #print(df_test['Views'].str.split('+').str.len().groupby())
-        #test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results', 'test')
+        test.run_test(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_results_xlsx, 'test_results', 'test')
         
         #save attention weights
         #path_to_attentionwt = "/".join(config_file.split('/')[:-1]) #"C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/breast-cancer-multiview-mammogram-codes/multiinstance results/results/ijcai23/error_analysis_plots/"
@@ -637,7 +637,7 @@ if __name__=='__main__':
         #attention_wt_extraction.save_attentionwt(config_params, model, path_to_model, dataloader_test, batches_test, df_test, path_to_attentionwt)
 
         #visualize saliency maps and ROI candidates
-        if config_params['dataset'] == 'zgt':
+        '''if config_params['dataset'] == 'zgt':
             if config_params['learningtype'] == 'MIL':
                 #df_roi = pd.read_csv('/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_roisubset.csv', sep=';')
                 df_roi = pd.read_csv('/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_roisubset.csv', sep=';')
@@ -664,18 +664,10 @@ if __name__=='__main__':
             #match image labels to attention weights
             imagelabel_attwt_match_zgt.run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_roi, df_roi, path_to_results_xlsx)
         else:
-            '''df_iou = pd.read_csv('/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/models_results/vindr/ijcai23/modelid25_attentionimagewise_milpoolingismean_viewsinclusionall_femodelgmic_resnet18_learningtypeMIL/iou_score_test_set.csv', sep=';')
-                df_roi = pd.read_csv('/deepstore/datasets/dmb/medical/breastcancer/mammography/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv', sep=';')
-                df_roi = df_roi[df_roi['split']=='test']
-                df_iou['ImageName'] = df_iou['ImageName'].str.split('_').str[-1].str.split('.png').str[0]
-                print(df_iou['ImageName'])
-                print(df_roi['ImageName'])
-                print(df_roi[~df_roi['ImageName'].isin(df_iou['ImageName'].unique())]['ImageName'], flush=True)
-                input('halt')'''
             visualize_roi.run_visualization_pipeline(config_params, model, path_to_model, dataloader_test, df_test)
             #match image labels to attention weights
             #imagelabel_attwt_match.run_imagelabel_attwt_match(config_params, model, path_to_model, dataloader_test, df_test, path_to_results_xlsx)
-        
+        '''
         
 
         #save feature vector 
