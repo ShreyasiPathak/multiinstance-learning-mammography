@@ -226,11 +226,12 @@ def read_config_file(config_file):
 
     #config_params['dataset'] = 'zgt'
     #config_params['viewsinclusion'] = 'all'
-    #config_params['SIL_csvfilepath'] = "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended_SI.csv"
-    #config_params['MIL_csvfilepath'] = "/homes/spathak/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended.csv"
-    #config_params['preprocessed_imagepath'] = "/groups/dso/spathak"
+    #config_params['SIL_csvfilepath'] = "/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended_SI.csv"
+    #config_params['MIL_csvfilepath'] = "/home/pathaks/PhD/case-level-breast-cancer/multiview_mammogram/input_data/MG_training_files_studyUID_accessionNum_viewnames_final4_viewsextended.csv"
+    #config_params['preprocessed_imagepath'] = "/deepstore/datasets/dmb/medical/breastcancer/mammography/zgt"
     #config_params['bitdepth'] = 12
-    #config_params['batchsize'] = 4
+    #config_params['batchsize'] = 1
+    #config_params['numworkers'] = 8
     #config_params['datasplit'] = 'casebasedtestset'
     #config_params['labeltouse'] = 'caselabel'
 
