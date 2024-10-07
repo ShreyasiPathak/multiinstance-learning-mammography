@@ -50,16 +50,18 @@ def loss_fn_crossentropy(config_params, class_weights, test_bool):
 
 def loss_fn_bce(config_params, class_weights, test_bool):
     if test_bool or not config_params['classimbalance']:
-        if config_params['milpooling']=='esatt' or config_params['milpooling']=='esgatt' or config_params['milpooling']=='esmean' or config_params['milpooling']=='esmax':
-            criterion = nn.BCEWithLogitsLoss()
-        elif config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+        if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
             criterion = nn.BCELoss()
+        #if config_params['milpooling']=='esatt' or config_params['milpooling']=='esgatt' or config_params['milpooling']=='esmean' or config_params['milpooling']=='esmax':
+        else:
+            criterion = nn.BCEWithLogitsLoss()
 
     elif config_params['classimbalance'] == 'poswt':
-        if config_params['milpooling']=='esatt' or config_params['milpooling']=='esgatt' or config_params['milpooling']=='esmean' or config_params['milpooling']=='esmax':
-            criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights[0])
-        elif config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
+        #if config_params['milpooling']=='esatt' or config_params['milpooling']=='esgatt' or config_params['milpooling']=='esmean' or config_params['milpooling']=='esmax':   
+        if config_params['milpooling']=='isatt' or config_params['milpooling']=='isgatt' or config_params['milpooling']=='ismean' or config_params['milpooling']=='ismax':
             criterion = nn.BCELoss()
+        else:
+            criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights[0])
 
     return criterion
 
@@ -107,7 +109,11 @@ def loss_fn_gmic(config_params, logitloss, loss, y_local, y_global, y_fusion, sa
         #print("local:", y_local, y_true)
         local_network_loss = loss(y_local, y_true)
         #print("fusion:", y_fusion, y_true)
-        fusion_network_loss = loss(y_fusion, y_true)
+        fusion_network_loss = loss(y_fusion, y_true) 
+    else:
+        local_network_loss = logitloss(y_local, y_true)
+        fusion_network_loss = logitloss(y_fusion, y_true)
+
 
     if config_params['learningtype'] == 'SIL':
         if config_params['numclasses']>1:
