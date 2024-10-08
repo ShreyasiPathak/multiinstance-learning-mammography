@@ -5,7 +5,7 @@ This repository contains the source code of case-level breast cancer prediction 
 
 A overview of our model framework can be seen below. 
 
-<img src="mil-breast-cancer-model-overview_v2.png" alt="model-overview" style="height: 300px; width:800px;"/>
+<img src="mil-breast-cancer-model-overview.png" alt="model-overview" style="height: 300px; width:800px;"/>
 
 A visualization of our model output is shown below. It shows 4 images in a case and 6 ROI candidates extracted by our model for each image, along with the importance (attention) score associated with the images and the ROIs. This is a malignant case which has been classified as malignant by our model and the relevent ROIs containing mass abnormality have been correctly extracted.
 
