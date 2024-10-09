@@ -39,7 +39,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 
 ### Creation of preprocessed datasets
 1. Convert the dicom images to png with this [script](/src/data_processing/dicom_to_png.py). <br/>
-2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning script](/src/data_processing/image_cleaning.py). Example of the results of our image preprocessing algorithm can be found [here](/image-preprocessing). 
+2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning script](/src/data_processing/image_cleaning.py). Example of the results of our image preprocessing algorithm can be found [here](/image-preprocessing). We used these preprocessed images as input to our model.
 
 ### Preparation of input csv file 
 1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
