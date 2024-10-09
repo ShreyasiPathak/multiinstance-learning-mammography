@@ -76,6 +76,11 @@ For reproducibility, we release the configuration files used for training all th
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models.md).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](all-config-files/Table10). 
 
+## ROI IoU and DSC score calculation
+IoU and DSC scores can be calculated using the script [here](src/analysis/mask_roi_match.py).<br/>
+Sample csv file used in this script for vindr can be found [here](input-csv-files/vindr/vindr_singleinstance_imgpreprocessing_size_withroiloc.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width, study_id, series_id, laterality, view_position, breast_birads, breast_density, category of the finding, birads of the finding, xmin, ymin, xmax, ymax of the ROI, split (training or test). <br/>
+Sample csv file used in this script for cbis can be found [here](input-csv-files/cbis/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width. The script needs the path location of the ROI masks. <br/>
+
 ## Citation to our paper
 Pathak, S., Schlötterer, J., Geerdink, J., Vijlbrief, O.D., van Keulen, M. and Seifert, C., 2023. Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings. arXiv preprint arXiv:2310.12677.
 ```

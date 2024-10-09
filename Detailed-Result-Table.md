@@ -14,6 +14,15 @@ We only reported the F1 and AUC score for our models in the paper. Here you can 
 | ResNet34      | $0.62 \pm 0.01$          | $0.71 \pm 0.04$          | $\textbf{0.66} \pm 0.02$ | $0.78 \pm 0.01$          | $0.79 \pm 0.01$          | 21.3         |
 | GMIC-ResNet18 | $0.57 \pm 0.06$          | $\textbf{0.80} \pm 0.10$ | $\textbf{0.66} \pm 0.02$ | $\textbf{0.79} \pm 0.02$ | $0.83 \pm 0.00$          | 22.5         |
 
+#### [Extension of Table 6 of paper] Performance of MIL vs SIL pooling approaches on CBIS, VinDr, MGM-FV. 
+| Model     | Precision                | Recall                   | F1                       | AUC                      | Params (Mio) |
+| --------- | -------------------      | -------                  | ---------                | ---------                | -------------|
+|           |                          | *CBIS*                   |                          |                          |              |
+| SIL-IL    | $0.70 \pm 0.08$          | $0.62 \pm 0.07$          | $0.66 \pm 0.03$          | $0.79 \pm 0.05$          |       2.3    |
+| SIL-CL    | $0.67 \pm 0.05$          | $0.63 \pm 0.08$          | $0.65 \pm 0.02$          | $0.76 \pm 0.00$          |       22.5   |
+| ESAttSide | $0.64 \pm 0.01$          | $0.77 \pm 0.04$          | $0.70 \pm 0.01$          | $0.78 \pm 0.01$          |       22.5   |
+
+
 
 #### [Extension of Table IV of paper] Performance of MIL pooling approaches on CBIS, VinDr, MGM-FV. 
 | Model     | Precision                | Recall                   | F1                       | AUC                      | Params (Mio) |
