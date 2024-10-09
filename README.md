@@ -51,6 +51,7 @@ For training models using our script, you need to create configuration files con
 For creating your own configuration file for training a model, do as follows:
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
+
 Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
 
 For reproducibility, we release the configuration files used for training all the models reported in our paper [here](all-config-files). 
