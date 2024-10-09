@@ -76,6 +76,9 @@ For reproducibility, we release the configuration files used for training all th
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models.md).<br/>
 Further, you can train our implementation of the SOTA models using our source code by using the config files [here](all-config-files/Table10). 
 
+## ROI IoU and DSC score calculation
+
+
 ## Citation to our paper
 Pathak, S., Schlötterer, J., Geerdink, J., Vijlbrief, O.D., van Keulen, M. and Seifert, C., 2023. Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings. arXiv preprint arXiv:2310.12677.
 ```
