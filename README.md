@@ -45,16 +45,19 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
 2. We have provided a small snippet from our input csv file for CBIS and VinDr [here](/input-csv-files).
 
-### Model training
-1. Our model training script can be found [here](src). 
-2. Create the configuration file for storing input parameters for the code as follows:
+### Configuration files
+For training models using our scripts, you need to create configuration files containing all settings of the training.
+1. Create the configuration file for storing input parameters for the code as follows:
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
 
-**Configuration file** We release the configuration files used for training all the models reported in our paper. You can refer to our configuration files for all datasets [here](all-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
-3. Add the following command in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
+2. We release the configuration files used for training all the models reported in our paper. You can refer to our configuration files for all datasets [here](all-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
+
+### Model training
+1. Our model training script can be found [here](src). 
+2. Add the following command in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
    > export PYTHONPATH=/home/src 
-4. Run the code as follows: 
+3. Run the code as follows: 
    > python train_eval/train.py --config_file_path sample-config-files/cbis/es-att-img/ --num_config_start 0 --num_config_end 1 --mode train <br/>
    
    Explanation of the above command: <br/>
