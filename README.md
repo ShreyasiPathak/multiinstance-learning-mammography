@@ -51,7 +51,7 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
 
-   You can refer to our configuration files for training single-instance model ($GMIC-ResNet18$) and our multi-instance learning models $ES-Att^{img}$ and $ES-Att^{side}$ on CBIS and VinDr datasets [here](master/sample-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
+**Configuration file** We release the configuration files used for training all the models reported in our paper. You can refer to our configuration files for all datasets [here](all-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
 3. Add the following command in your terminal or sbatch file (this is the path to wherever you have downloaded the src folder), otherwise the main script will not be able to find different modules: 
    > export PYTHONPATH=/home/src 
 4. Run the code as follows: 
@@ -59,11 +59,11 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
    
    Explanation of the above command: <br/>
    --config_file_path, I have added the location of my config file. You can add yours. Trained models and results will get stored in this location. <br/>
-   --num_config_start and --num_config_end are the start and end id of the config files if there are >1 config file that I want to execute. I have only provided 1 config file, so this will be start and end will be 0 and 1. This argument is useful during hyperparameter tuning, where each config file contains a different hypeparameter combination <br/>
+   --num_config_start and --num_config_end are the start and end id of the config files if there are >1 config files that you want to execute. If you only want to train the model on 1 config file, then put the num_config_start and num_config_end as 0 and 1. This argument is useful during hyperparameter tuning, where each config file contains a different hypeparameter combination <br/>
 
 ## Evaluation of trained models
-1. We have provided our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&dl=0) for users who want to only evaluate our trained model on CBIS/VinDr, or if someone wants to use our pretrained model for training on other datasets.
-2. For testing one of our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&dl=0), run:
+1. We have provided our pretrained models [here](https://www.dropbox.com/scl/fo/jgmh6f9t0po0d6rofi9mu/h?rlkey=znua1rnytc60uzz103a7yre9r&st=06vt139f&dl=0) for users who want to only evaluate our trained model on CBIS/VinDr, or if someone wants to use our pretrained model for training on other datasets.
+2. For testing one of our pretrained models, run:
   > python train_eval/train.py --config_file_path MIL-breastcancer-pretrained-models/cbis/es-att-img --num_config_start 0 --num_config_end 1 --mode test
 
 ## State-of-the-art (SOTA) reproducibility
