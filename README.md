@@ -46,12 +46,14 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 2. We have provided a small snippet from our input csv file for CBIS and VinDr [here](/input-csv-files).
 
 ### Configuration files
-For training models using our scripts, you need to create configuration files containing all settings of the training.
-1. Create the configuration file for storing input parameters for the code as follows:
+For training models using our script, you need to create configuration files containing all settings for the training. You can refer to our configuration files [here](all-config-files).
+
+For creating your own configuration file for training a model, do as follows:
    > cd src <br/>
    > python setup/config_file_creation.py  <br/>
+Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
 
-2. We release the configuration files used for training all the models reported in our paper. You can refer to our configuration files for all datasets [here](all-config-files). Please add your absolute input data path to the field "preprocessed_imagepath" and the path to the input csv file in the fields "SIL_csvfilepath" and "MIL_csvfilepath" in the script. <br/>
+For reproducibility, we release the configuration files used for training all the models reported in our paper [here](all-config-files). 
 
 ### Model training
 1. Our model training script can be found [here](src). 
@@ -71,7 +73,7 @@ For training models using our scripts, you need to create configuration files co
 
 ## State-of-the-art (SOTA) reproducibility
 We have described in detail how we reproduced 4 SOTA models and have also added some extra details for training our model [here](Reproducing-SOTA-and-training-details-MIL-models.md).<br/>
-Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/sample-config-files/reproducing-SOTA). 
+Further, you can train our implementation of the SOTA models using our source code by using the config files [here](/all-config-files/Table 10). 
 
 ## Citation to our paper
 Pathak, S., Schlötterer, J., Geerdink, J., Vijlbrief, O.D., van Keulen, M. and Seifert, C., 2023. Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings. arXiv preprint arXiv:2310.12677.
