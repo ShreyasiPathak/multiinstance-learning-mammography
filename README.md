@@ -1,4 +1,4 @@
-# Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
+# Case-level Breast Cancer Prediction for Real Hospital Settings
 
 ## Introduction
 This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model generates a saliency map for each image and 6 candidate ROIs per image. <br/>
@@ -82,7 +82,7 @@ Sample csv file used in this script for vindr can be found [here](input-csv-file
 Sample csv file used in this script for cbis can be found [here](input-csv-files/cbis/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width. The script needs the path location of the ROI masks. <br/>
 
 ## Citation to our paper
-Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2024. [Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings](https://arxiv.org/pdf/2310.12677). arXiv preprint arXiv:2310.12677.
+Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2024. [Case-level Breast Cancer Prediction for Real Hospital Settings](https://arxiv.org/pdf/2310.12677). arXiv preprint arXiv:2310.12677.
 ```
 @misc{pathak2024caselevelbreastcancerprediction,
       title={Case-level Breast Cancer Prediction for Real Hospital Settings}, 
