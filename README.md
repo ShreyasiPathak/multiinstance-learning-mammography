@@ -1,4 +1,4 @@
-# Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings
+# Case-level Breast Cancer Prediction for Real Hospital Settings
 
 ## Introduction
 This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model generates a saliency map for each image and 6 candidate ROIs per image. <br/>
@@ -82,12 +82,15 @@ Sample csv file used in this script for vindr can be found [here](input-csv-file
 Sample csv file used in this script for cbis can be found [here](input-csv-files/cbis/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width. The script needs the path location of the ROI masks. <br/>
 
 ## Citation to our paper
-Pathak, S., Schlötterer, J., Geerdink, J., Vijlbrief, O.D., van Keulen, M. and Seifert, C., 2023. Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings. arXiv preprint arXiv:2310.12677.
+Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2024. [Case-level Breast Cancer Prediction for Real Hospital Settings](https://arxiv.org/pdf/2310.12677). arXiv preprint arXiv:2310.12677.
 ```
-@article{pathak2023weakly,
-  title={Weakly Supervised Learning for Breast Cancer Prediction on Mammograms in Realistic Settings},
-  author={Pathak, Shreyasi and Schl{\"o}tterer, J{\"o}rg and Geerdink, Jeroen and Vijlbrief, Onno Dirk and van Keulen, Maurice and Seifert, Christin},
-  journal={arXiv preprint arXiv:2310.12677},
-  year={2023}
+@misc{pathak2024caselevelbreastcancerprediction,
+      title={Case-level Breast Cancer Prediction for Real Hospital Settings}, 
+      author={Shreyasi Pathak and Jörg Schlötterer and Jeroen Geerdink and Jeroen Veltman and Maurice van Keulen and Nicola Strisciuglio and Christin Seifert},
+      year={2024},
+      eprint={2310.12677},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2310.12677}, 
 }
 ```
