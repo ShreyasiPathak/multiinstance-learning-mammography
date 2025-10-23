@@ -82,7 +82,7 @@ Sample csv file used in this script for vindr can be found [here](input-csv-file
 Sample csv file used in this script for cbis can be found [here](input-csv-files/cbis/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width. The script needs the path location of the ROI masks. <br/>
 
 ## Citation to our paper
-Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2025. [Breast cancer prediction using mammography exams for real hospital settings](https://www.sciencedirect.com/science/article/pii/S0010482525014891). Computers in Biology and Medicine.
+Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C. [Breast cancer prediction using mammography exams for real hospital settings](https://www.sciencedirect.com/science/article/pii/S0010482525014891). Computers in Biology and Medicine, 2025.
 ```
 @article{pathak2025breast,
   title={Breast cancer prediction using mammography exams for real hospital settings},
