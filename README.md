@@ -1,4 +1,4 @@
-# Case-level Breast Cancer Prediction for Real Hospital Settings
+# Breast cancer prediction using mammography exams for real hospital settings
 
 ## Introduction
 This repository contains the source code of case-level breast cancer prediction using mammography. The model takes a set of images per mammography case (exam) as input and predicts the class label benign or malignant. The model generates a saliency map for each image and 6 candidate ROIs per image. <br/>
@@ -42,8 +42,8 @@ We used 3 datasets in our work - CBIS (public dataset), VinDr (public dataset) a
 2. Convert the original png images to preprocessed png images (to remove irrelevant information and remove extra black background) according to our [image cleaning script](/src/data_processing/image_cleaning.py). Example of the results of our image preprocessing algorithm can be found [here](/image-preprocessing). We used these preprocessed images as input to our model.
 
 ### Preparation of input csv file 
-1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py).
-2. We have provided a small snippet from our input csv file for CBIS and VinDr [here](/input-csv-files).
+1. Create the input csv file which contains the list of input instances and their corresponding groundtruth, for multi-instance and single-instance model training using the [script](/src/data_processing/input_csv_file_creation_cbis.py) for cbis and [script](/src/data_processing/vindr_utilities.py) for VinDr-Mammo.
+2. We have provided a small snippet from our input csv file for CBIS and VinDr-Mammo [here](/input-csv-files).
 
 ### Configuration files
 For training models using our script, you need to create configuration files containing all settings for the training. You can refer to our configuration files [here](all-config-files).
@@ -82,15 +82,15 @@ Sample csv file used in this script for vindr can be found [here](input-csv-file
 Sample csv file used in this script for cbis can be found [here](input-csv-files/cbis/cbis-ddsm_singleinstance_imgpreprocessing_size_mod.csv). The fields are image name, min_x, min_y, max_x, max_y of the processed image, original image height and width, processed image height and width. The script needs the path location of the ROI masks. <br/>
 
 ## Citation to our paper
-Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2024. [Case-level Breast Cancer Prediction for Real Hospital Settings](https://arxiv.org/pdf/2310.12677). arXiv preprint arXiv:2310.12677.
+Pathak, S., Schlötterer, J., Geerdink, J., Veltman, J., van Keulen, M., Strisciuglio, N. and Seifert, C., 2025. [Breast cancer prediction using mammography exams for real hospital settings](https://www.sciencedirect.com/science/article/pii/S0010482525014891). Computers in Biology and Medicine.
 ```
-@misc{pathak2024caselevelbreastcancerprediction,
-      title={Case-level Breast Cancer Prediction for Real Hospital Settings}, 
-      author={Shreyasi Pathak and Jörg Schlötterer and Jeroen Geerdink and Jeroen Veltman and Maurice van Keulen and Nicola Strisciuglio and Christin Seifert},
-      year={2024},
-      eprint={2310.12677},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2310.12677}, 
+@article{pathak2025breast,
+  title={Breast cancer prediction using mammography exams for real hospital settings},
+  author={Pathak, Shreyasi and Schl{\"o}tterer, J{\"o}rg and Geerdink, Jeroen and Veltman, Jeroen and van Keulen, Maurice and Strisciuglio, Nicola and Seifert, Christin},
+  journal={Computers in Biology and Medicine},
+  volume={198},
+  pages={111136},
+  year={2025},
+  publisher={Elsevier}
 }
 ```
