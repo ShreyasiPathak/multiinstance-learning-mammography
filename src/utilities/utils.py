@@ -422,9 +422,16 @@ def crosscheck_view_collect_images(config_params, df):
             input('halt')
         i+=1
 
-#fig_name = 'C:/Users/PathakS/OneDrive - Universiteit Twente/PhD/projects/radiology breast cancer/codes/breast-cancer-multiview-mammogram-codes/multiinstance results/results/NextSubmission/roi-diagnosis-esattside-confmat-vindr1.pdf'
+#fig_name = '/home/roi-diagnosis-ismeanimg-confmat-zgt.pdf'#roi-diagnosis-esattside-confmat-vindr1.pdf'
 #conf_mat = [[ 93 , 56, 20, 1], [ 53, 175, 9, 16]]
 #conf_mat = [[ 79 , 67, 20, 3], [ 54, 178, 8, 15]] #silil
 #conf_mat = [[ 54 , 30, 6, 1], [ 30, 63, 2, 1]] # esattside
 #conf_mat = [[ 0 , 70, 0, 21], [ 0, 85, 0, 11]] # ismeanatt
+
+#conf_mat = [[27, 7, 7, 0],[9, 39, 0, 2]] #esattside - zgt
+#conf_mat = [[0, 28, 0, 13],[0, 38, 0, 12]] #ismean - zgt
+
+
 #print_confusion_matrix(conf_mat, ['B-Case', 'M-Case'], ['B-Case + \nROI', 'M-Case +\nROI', 'B-Case + \n R\u0336O\u0336I\u0336', 'M-Case +\nNo-ROI'], fig_name, figsize = (5,5), fontsize=10)
+
+#print_confusion_matrix(conf_mat, ['B-Case', 'M-Case'], ['B-Case + \nROI', 'M-Case +\nROI', 'B-Case + \nR\u0336O\u0336I\u0336', 'M-Case +\nR\u0336O\u0336I\u0336'], fig_name, figsize = (5,5), fontsize=10)

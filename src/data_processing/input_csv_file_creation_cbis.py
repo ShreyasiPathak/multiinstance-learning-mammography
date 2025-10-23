@@ -5,8 +5,6 @@ import shutil
 import pandas as pd
 import numpy as np
 
-file_creation = 'MIL' #or SIL
-
 #------------------------------------------------------------------MIL csv file creation----------------------------------------------#
 def creating_MIL_folder_structure(input_foldername1, output_foldername1):
     imagelist = os.listdir(input_foldername1)
@@ -26,7 +24,7 @@ def creating_MIL_folder_structure(input_foldername1, output_foldername1):
         shutil.copy(original_path, target_path)
 
 #creating mammogram csv file
-def create_MIL_csv_file(cbis_ddsm_trainingfile):
+def create_MIL_csv_file(cbis_ddsm_trainingfile, output_foldername):
     dic_imageinfo={}
     # open the file in the write mode
     f = open(cbis_ddsm_trainingfile, 'w')
@@ -83,7 +81,7 @@ def aggregating_patient_case_info(grp):
     return grp_agg
 
 #adding groundtruth to MIL mammogram csv
-def add_caselevel_groundtruth_MIL_csvfile():
+def add_caselevel_groundtruth_MIL_csvfile(cbis_ddsm_trainingfile):
     df_modality = pd.read_csv(cbis_ddsm_trainingfile,sep=';')
     print(df_modality.shape)
     df_original_masstrain = pd.read_csv(cbis_ddsm_originalfile_masstrain,sep=',')
@@ -125,28 +123,7 @@ def add_caselevel_groundtruth_MIL_csvfile():
     print(df_merged[~df_merged['Groundtruth'].isnull()].shape)
 
     df_merged.to_csv('/home/MG_training_files_cbis-ddsm_multiinstance_groundtruth.csv',sep=';')
-
-if file_creation == 'MIL':
-    input_foldername = "<path to cleaned/preprocessed images>"
-    output_foldername = "<path to multi-instance data>"
-    #dicom_folder = "C:/Users/PathakS/Shreyasi/CBIS-DDSM/manifest-ZkhPvrLo5216730872708713142/CBIS-DDSM"  
-
-    #ROI input files provided by cbis-ddsm website
-    cbis_ddsm_trainingfile = '/home/MG_training_files_cbis-ddsm_multiinstance.csv'
-    cbis_ddsm_originalfile_masstrain = '/home/mass_case_description_train_set.csv'
-    cbis_ddsm_originalfile_masstest = '/home/mass_case_description_test_set.csv'
-    cbis_ddsm_originalfile_calctrain = '/home/calc_case_description_train_set.csv'
-    cbis_ddsm_originalfile_calctest = '/home/calc_case_description_test_set.csv'
-
-    creating_MIL_folder_structure(input_foldername, output_foldername)
-    create_MIL_csv_file(cbis_ddsm_trainingfile)
-    add_caselevel_groundtruth_MIL_csvfile()
 #------------------------------------------------------------------MIL csv file creation end----------------------------------------------#
-
-
-
-
-
 
 
 
@@ -174,7 +151,7 @@ def conflicting_groundtruth(grp):
     return grp_agg
 
 #create single instance csv file
-def create_SIL_csvfile():
+def create_SIL_csvfile(input_foldername):
     df_original_masstrain=pd.read_csv(cbis_ddsm_originalfile_masstrain,sep=',')
     df_original_masstest=pd.read_csv(cbis_ddsm_originalfile_masstest,sep=',')
     df_original_calctrain=pd.read_csv(cbis_ddsm_originalfile_calctrain,sep=',').rename(columns={'breast density':'breast_density'})
@@ -187,7 +164,7 @@ def create_SIL_csvfile():
     df_merged=[df_original_masstrain,df_original_masstest,df_original_calctrain,df_original_calctest]
     df_merged = pd.concat(df_merged)
     print(df_merged)
-    df_merged['FullPath']=df_merged['image file path'].apply(lambda x: '/projects/dso_mammovit/project_kushal/data/processed/'+x.split('/')[0]+'_1-1.png')
+    df_merged['FullPath']=df_merged['image file path'].apply(lambda x: input_foldername+x.split('/')[0]+'_1-1.png')
     df_merged['Views'] = df_merged['left or right breast'].map({'LEFT':'L','RIGHT':'R'})+df_merged['image view']
     df_merged['Groundtruth']=df_merged['pathology'].map({'BENIGN':'benign','MALIGNANT':'malignant','BENIGN_WITHOUT_CALLBACK':'benign'})
     df_merged['ImageName']=df_merged['image file path'].apply(lambda x: x.split('/')[0]+'_1.1')
@@ -204,7 +181,7 @@ def create_SIL_csvfile():
 
     df_merged = df_merged.sort_values(by='Patient_Id')
     #df_merged = df_merged[df_merged.duplicated(subset=['ImageName'])]
-    df_merged.to_csv('/projects/dso_mammovit/project_kushal/data/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv',sep=';',na_rep='NULL')
+    df_merged.to_csv('/home/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv',sep=';',na_rep='NULL')
 
 #merge SIL_imagelabel with SIL_caselabel csv such that the final file contain 2 columns - imagelabel and caselabel    
 def create_final_SIL_csvfile(imagelabel_file):
@@ -213,7 +190,7 @@ def create_final_SIL_csvfile(imagelabel_file):
     df_imagelabel['CaseLabel'] = df_imagelabel.groupby(by='FolderName')['Groundtruth'].apply(lambda x: 'malignant' if 'malignant' in list(np.unique(x['Groundtruth'])) else 'benign')
     df_imagelabel = df_imagelabel.rename(columns={'Groundtruth':'ImageLabel'})
     print(df_imagelabel.shape)
-    df_imagelabel.to_csv('/projects/dso_mammovit/project_kushal/data/cbis-ddsm_singleinstance_groundtruth.csv',sep=';',na_rep='NULL', index=False)
+    df_imagelabel.to_csv('/home/cbis-ddsm_singleinstance_groundtruth.csv',sep=';',na_rep='NULL', index=False)
 
 #remove fullpath from the above created sil csv and add the short path, which is the path of the image in multiinstance_data_8bit
 def shortpath_addition_SIL_csvfile(sil_csvfile, mil_imgpath):
@@ -226,9 +203,91 @@ def shortpath_addition_SIL_csvfile(sil_csvfile, mil_imgpath):
     #df_sil = df_sil.drop(['FullPath_x', 'FullPath_y', 'Unnamed: 0'], axis=1)
     df_sil = df_sil.drop(['Unnamed: 0'], axis=1)
     df_sil.to_csv('/home/cbis-ddsm_singleinstance_groundtruth.csv',sep=';',na_rep='NULL', index=False)
-
-if file_creation == 'SIL':
-    create_SIL_csvfile()
-    create_final_SIL_csvfile('/home/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv')
-    shortpath_addition_SIL_csvfile('/home/cbis-ddsm_singleinstance_groundtruth.csv', '/home/multiinstance_data')
 #----------------------------------------------SIL input csv file creation----------------------------------------------#
+
+
+
+
+#----------------------------------------------ROI input file creation--------------------------------------------------#
+def create_roi_csv_file(path_to_roi_images):
+    df_original_masstrain=pd.read_csv(cbis_ddsm_originalfile_masstrain,sep=',')
+    df_original_masstest=pd.read_csv(cbis_ddsm_originalfile_masstest,sep=',')
+    df_original_calctrain=pd.read_csv(cbis_ddsm_originalfile_calctrain,sep=',').rename(columns={'breast density':'breast_density'})
+    df_original_calctest=pd.read_csv(cbis_ddsm_originalfile_calctest,sep=',').rename(columns={'breast density':'breast_density'})
+    print(df_original_masstrain.shape)
+    print(df_original_masstest.shape)
+    print(df_original_calctrain.shape)
+    print(df_original_calctest.shape)
+
+    df_merged=[df_original_masstrain,df_original_masstest,df_original_calctrain,df_original_calctest]
+    df_merged = pd.concat(df_merged)
+    print(df_merged)
+    df_merged['FullPath']=df_merged['cropped image file path'].apply(lambda x: path_to_roi_images + x.split('/')[0]+'/1-1.png') #path to the image masks of the ROIs. Change this path to  
+    df_merged['Views'] = df_merged['left or right breast'].map({'LEFT':'L','RIGHT':'R'})+df_merged['image view']
+    df_merged['Groundtruth']=df_merged['pathology'].map({'BENIGN':'benign','MALIGNANT':'malignant','BENIGN_WITHOUT_CALLBACK':'benign'})
+    df_merged['FolderName']=df_merged['cropped image file path'].apply(lambda x: x.split('/')[0])
+    df_merged = df_merged.rename(columns={'patient_id':'Patient_Id', 'abnormality type': 'AbnormalityType', 'assessment': 'Assessment', 'breast_density':'BreastDensity', 'left or right breast': 'BreastSide', 'image view': 'ImageView', 'abnormality id': 'AbnormalityID', 'mass shape': 'MassShape', 'mass margins': 'MassMargins', 'subtlety': 'Subtlety', 'calc type': 'CalcType', 'calc distribution': 'CalcDistribution'})
+
+    df_merged = df_merged.drop(['image file path','cropped image file path','ROI mask file path', 'pathology'], axis=1)
+    df_merged = df_merged.sort_values(by='Patient_Id')
+    print(df_merged)
+    df_merged.to_csv('/home/MG_training_files_cbis-ddsm_roi_groundtruth.csv',sep=';',na_rep='NULL', index = False)
+#----------------------------------------------ROI input file creation--------------------------------------------------#
+
+
+if __name__ == '__main__':
+    file_creation = 'ROI' #or SIL or ROI -> change this setting based on what kind of csv files you want to create.
+
+    #ROI input files provided by cbis-ddsm website. These can be downloaded from their website.
+    cbis_ddsm_originalfile_masstrain = '/home/mass_case_description_train_set.csv'
+    cbis_ddsm_originalfile_masstest = '/home/mass_case_description_test_set.csv'
+    cbis_ddsm_originalfile_calctrain = '/home/calc_case_description_train_set.csv'
+    cbis_ddsm_originalfile_calctest = '/home/calc_case_description_test_set.csv'
+
+    input_foldername = "/home/processed_images/" #dicom files of the mammography images are downloaded from the cbis website. Then converted to png and saved in this folder.
+    # structure of input_foldername: 
+    #(root folder) /home/processed_images/
+    #(file 1)            Mass-Training_P_02092_LEFT_MLO_1-1.png
+    #(file 2)            Mass-Training_P_02092_LEFT_CC_1-1.png
+    #(file n)            ....
+
+    if file_creation == 'MIL':
+        output_foldername = "/home/multiinstance_data/" #give any folder path here where you want to save the output images for the multi-instance learning model.
+        # structure of output_foldername:  
+        #(root folder) /home/multiinstance_data/
+        #(subfolder 1)          Mass-Training_P_02092
+        #(subsubfolder 1)               LMLO_Mass-Training_P_02092_1-1
+        #(file 1)                           Mass-Training_P_02092_LEFT_MLO_1-1.png 
+        #(subsubfolder 2)               LCC_Mass-Training_P_02092_1-1
+        #(file 2)                           Mass-Training_P_02092_LEFT_CC_1-1.png 
+        #(subfolder 2)          Mass-Training_P_02079  
+        #(subsubfolder 1)               RMLO_Mass-Training_P_02079_1-1
+        #(file 1)                           Mass-Training_P_02079_RIGHT_MLO_1-1.png 
+        #(subsubfolder 2)               RCC_Mass-Training_P_02079_1-1
+        #(file 2)                           Mass-Training_P_02079_RIGHT_CC_1-1.png
+        
+        #dicom_folder = "C:/Users/PathakS/Shreyasi/CBIS-DDSM/manifest-ZkhPvrLo5216730872708713142/CBIS-DDSM"  
+        cbis_ddsm_trainingfile = '/home/MG_training_files_cbis-ddsm_multiinstance.csv'
+        
+        creating_MIL_folder_structure(input_foldername, output_foldername)
+        create_MIL_csv_file(cbis_ddsm_trainingfile, output_foldername)
+        add_caselevel_groundtruth_MIL_csvfile(cbis_ddsm_trainingfile)
+
+    elif file_creation == 'SIL':
+        cbis_ddsm_trainingfile_singleinstance = '/home/MG_training_files_cbis-ddsm_singleinstance_groundtruth.csv'
+        create_SIL_csvfile(input_foldername)
+        create_final_SIL_csvfile(cbis_ddsm_trainingfile_singleinstance)
+        shortpath_addition_SIL_csvfile('/home/cbis-ddsm_singleinstance_groundtruth.csv', '/home/multiinstance_data')
+
+    elif file_creation == 'ROI':
+        path_to_roi_images = '/home/roi-images/' # dicom roi images from cbis converted to png and stored in this folder
+        #structure to path_to_roi_images folder. 1-1.png is the ROI and 1-2.png is the mask
+        #(root folder) /home/roi-images/
+        #(subfolder 1)          Mass-Training_P_02092_LEFT_MLO_1
+        #(roi image)                    1-1.png
+        #(mask image)                   1-2.png 
+        #(subfolder 2)          Mass-Training_P_02092_LEFT_CC_1
+        #(roi image)                    1-1.png
+        #(mask image)                   1-2.png
+
+        create_roi_csv_file(path_to_roi_images)
